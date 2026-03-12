@@ -1,0 +1,127 @@
+# k8s/base/postgres/statefulset.yaml
+# PostgreSQL deployed as a StatefulSet for stable network identity
+# and persistent storage. AWX requires PostgreSQL 13+.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: awx-postgres
+  labels:
+    app: awx-postgres
+    app.kubernetes.io/component: database
+spec:
+  serviceName: awx-postgres
+  replicas: 1  # Single instance; overlays can enable HA via patroni if needed
+  selector:
+    matchLabels:
+      app: awx-postgres
+  template:
+    metadata:
+      labels:
+        app: awx-postgres
+        app.kubernetes.io/component: database
+    spec:
+      # Security: run as non-root postgres user (uid 999)
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+
+      # Graceful shutdown: give postgres time to finish transactions
+      terminationGracePeriodSeconds: 60
+
+      containers:
+        - name: postgres
+          image: postgres:15-alpine  # Alpine for smaller image size
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+
+          # Credentials from Kubernetes Secret (never hardcoded)
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: awx-postgres-secret
+                  key: POSTGRES_DB
+
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: awx-postgres-secret
+                  key: POSTGRES_USER
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: awx-postgres-secret
+                  key: POSTGRES_PASSWORD
+
+            # Store data on the persistent volume
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+
+            # Mount init scripts; executed only on first DB initialization
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+
+          # Resource requests/limits — overridden per environment by overlays
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+
+          # Liveness: postgres process must respond to pg_isready
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - $(POSTGRES_DB)
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness: only route traffic when postgres is fully ready
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - $(POSTGRES_DB)
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+      volumes:
+        - name: postgres-init
+          configMap:
+            name: awx-postgres-init
+
+  # Persistent volume claim template — one PVC per pod replica
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+        labels:
+          app: awx-postgres
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi  # Overridden by overlays (e.g. 50Gi for prod)

@@ -1,0 +1,10 @@
+# k8s/base/namespace.yaml
+# Namespace is a placeholder — overlays patch the name per environment.
+# awx-dev, awx-staging, awx-prod are created by each overlay's kustomization.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: awx  # overridden by each overlay via namePrefix/nameSuffix or namespace field
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/part-of: awx

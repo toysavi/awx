@@ -1,0 +1,17 @@
+# k8s/base/postgres/pvc.yaml
+# Standalone PVC for postgres data (used alongside StatefulSet volumeClaimTemplates).
+# This explicit PVC is referenced by the AWX Operator's managed postgres config.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: awx-postgres-pvc
+  labels:
+    app: awx-postgres
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi  # Overridden by environment overlays
+  # storageClassName: standard  # Uncomment and set for specific storage class

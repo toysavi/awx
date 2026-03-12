@@ -1,0 +1,34 @@
+# k8s/base/kustomization.yaml
+# Base layer: shared resources for all environments.
+# Overlays (dev/staging/prod) import this and apply patches.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - postgres/pvc.yaml
+  - postgres/configmap.yaml
+  - awx/awx-instance.yaml
+  - awx/ingress.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/part-of: awx
+  app.kubernetes.io/managed-by: kustomize
+
+# Secrets are generated from a local .env file (gitignored).
+# The overlays reference this generator with environment-specific files.
+secretGenerator:
+  - name: awx-postgres-secret
+    envs:
+      - secrets.env
+    options:
+      disableNameSuffixHash: true  # stable name so AWX CR can reference it
+
+  - name: awx-admin-password
+    literals:
+      - password=PLACEHOLDER  # replaced by overlay secretGenerator or external secret
+    options:
+      disableNameSuffixHash: true

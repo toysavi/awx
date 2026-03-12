@@ -1,0 +1,68 @@
+# k8s/overlays/dev/kustomization.yaml
+# Development environment overlay.
+# Lower resources, no TLS, single replica, smaller storage.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: awx-dev
+
+resources:
+  - ../../base
+  - namespace.yaml  # dev-specific namespace
+
+patches:
+  # Lower resource limits for dev
+  - path: patch-resources.yaml
+    target:
+      kind: AWX
+      name: awx
+
+  # Use smaller storage for dev
+  - patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "5Gi"
+    target:
+      kind: PersistentVolumeClaim
+      name: awx-postgres-pvc
+
+  # Dev ingress: use dev hostname, no TLS
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: "awx-dev.example.com"
+    target:
+      kind: Ingress
+      name: awx-ingress
+
+# Dev secrets: loaded from local dev secrets file
+# Create by: cp k8s/base/secrets.env.example k8s/overlays/dev/secrets.env
+# Then edit with dev credentials.
+secretGenerator:
+  - name: awx-postgres-secret
+    envs:
+      - secrets.env
+    options:
+      disableNameSuffixHash: true
+
+  - name: awx-postgres-configuration
+    literals:
+      - host=awx-postgres.awx-dev.svc.cluster.local
+      - port=5432
+      - database=awx
+      - username=awx
+      - passwordSecretName=awx-postgres-secret
+      - passwordSecretKey=POSTGRES_PASSWORD
+    options:
+      disableNameSuffixHash: true
+
+  - name: awx-admin-password
+    envs:
+      - secrets.env
+    options:
+      disableNameSuffixHash: true
+
+images:
+  # Pin to a specific AWX version for reproducibility
+  - name: quay.io/ansible/awx
+    newTag: "24.6.1"

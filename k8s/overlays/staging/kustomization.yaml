@@ -1,0 +1,62 @@
+# k8s/overlays/staging/kustomization.yaml
+# Staging environment: mirrors prod config, TLS enabled, medium resources.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: awx-staging
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+patches:
+  - path: patch-resources.yaml
+    target:
+      kind: AWX
+      name: awx
+
+  # Staging ingress with TLS via cert-manager
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: "awx-staging.example.com"
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: "letsencrypt-staging"
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts:
+              - awx-staging.example.com
+            secretName: awx-staging-tls
+    target:
+      kind: Ingress
+      name: awx-ingress
+
+secretGenerator:
+  - name: awx-postgres-secret
+    envs:
+      - secrets.env
+    options:
+      disableNameSuffixHash: true
+
+  - name: awx-postgres-configuration
+    literals:
+      - host=awx-postgres.awx-staging.svc.cluster.local
+      - port=5432
+      - database=awx
+      - username=awx
+      - passwordSecretName=awx-postgres-secret
+      - passwordSecretKey=POSTGRES_PASSWORD
+    options:
+      disableNameSuffixHash: true
+
+  - name: awx-admin-password
+    envs:
+      - secrets.env
+    options:
+      disableNameSuffixHash: true
+
+images:
+  - name: quay.io/ansible/awx
+    newTag: "24.6.1"

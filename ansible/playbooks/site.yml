@@ -1,0 +1,43 @@
+---
+# ansible/playbooks/site.yml
+# ============================================================
+# Master playbook — orchestrates all roles.
+# Run from AWX using a Job Template targeting the appropriate
+# inventory.
+#
+# Usage (local):
+#   ansible-playbook -i inventories/dev/hosts.yml site.yml
+#
+# AWX: Create a Job Template pointing to this playbook.
+# ============================================================
+- name: Full site deployment
+  hosts: all
+  gather_facts: true
+  become: true
+
+  pre_tasks:
+    - name: Print deployment info
+      ansible.builtin.debug:
+        msg: |
+          ══════════════════════════════════
+          Deploying to: {{ inventory_hostname }}
+          Environment:  {{ environment | default('unknown') }}
+          AWX Job ID:   {{ tower_job_id | default('local') }}
+          ══════════════════════════════════
+
+    - name: Verify OS compatibility
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+          - ansible_distribution_version is version("22.04", ">=")
+        fail_msg: "This playbook requires Ubuntu 22.04+. Found: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        success_msg: "OS check passed: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+  roles:
+    - role: common      # Base system configuration
+    - role: security    # Security hardening (UFW, fail2ban, SSH hardening)
+
+  post_tasks:
+    - name: Deployment complete
+      ansible.builtin.debug:
+        msg: "Site deployment completed for {{ inventory_hostname }}"

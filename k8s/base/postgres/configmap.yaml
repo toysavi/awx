@@ -1,0 +1,51 @@
+# k8s/base/postgres/configmap.yaml
+# ConfigMap containing PostgreSQL initialization scripts.
+# These run only on first database initialization (when PGDATA is empty).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: awx-postgres-init
+  labels:
+    app: awx-postgres
+    app.kubernetes.io/component: database
+data:
+  # 01-init.sql: Creates the AWX database schema prerequisites
+  # The AWX application itself runs migrations on startup.
+  01-init.sql: |
+    -- PostgreSQL initialization for AWX
+    -- This runs once when the database container first starts.
+
+    -- Ensure the awx database exists (created by POSTGRES_DB env var,
+    -- but we add extensions and tuning here)
+    \connect awx;
+
+    -- Enable pg_stat_statements for query performance monitoring
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+    -- Enable uuid-ossp for UUID generation (used by AWX)
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+    -- Performance tuning: set timezone to UTC for consistent timestamps
+    ALTER DATABASE awx SET timezone TO 'UTC';
+
+    -- Grant all privileges on the awx database to the awx user
+    GRANT ALL PRIVILEGES ON DATABASE awx TO awx;
+
+  # 02-performance.sql: PostgreSQL tuning for AWX workloads
+  02-performance.sql: |
+    -- AWX performance tuning
+    -- These settings are applied at the database level.
+    -- For server-level tuning, modify postgresql.conf via ConfigMap.
+
+    \connect awx;
+
+    -- Optimize for AWX's concurrent job execution patterns
+    ALTER SYSTEM SET max_connections = '200';
+    ALTER SYSTEM SET shared_buffers = '256MB';
+    ALTER SYSTEM SET effective_cache_size = '768MB';
+    ALTER SYSTEM SET maintenance_work_mem = '64MB';
+    ALTER SYSTEM SET checkpoint_completion_target = '0.9';
+    ALTER SYSTEM SET wal_buffers = '16MB';
+    ALTER SYSTEM SET default_statistics_target = '100';
+
+    SELECT pg_reload_conf();

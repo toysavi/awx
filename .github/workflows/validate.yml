@@ -1,0 +1,112 @@
+# .github/workflows/validate.yml
+# ============================================================
+# PR Validation Pipeline
+# Runs on every pull request to catch manifest errors early.
+# Checks: kustomize build, kubeconform schema validation,
+#         trivy security scan, detect-secrets scan.
+# ============================================================
+name: Validate PR
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+    paths:
+      - 'k8s/**'
+      - 'ansible/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+
+jobs:
+  validate-manifests:
+    name: Validate K8s Manifests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kustomize
+        run: |
+          curl -sLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.3.0/kustomize_v5.3.0_linux_amd64.tar.gz"
+          tar -xzf kustomize_v5.3.0_linux_amd64.tar.gz
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Create placeholder secrets
+        run: |
+          cat > "k8s/overlays/${{ matrix.environment }}/secrets.env" <<'EOF'
+          POSTGRES_PASSWORD=placeholder_for_validation_only
+          POSTGRES_DB=awx
+          POSTGRES_USER=awx
+          AWX_ADMIN_PASSWORD=placeholder_for_validation_only
+          EOF
+
+      - name: kustomize build
+        run: |
+          kustomize build "k8s/overlays/${{ matrix.environment }}" \
+            > "/tmp/manifest-${{ matrix.environment }}.yaml"
+          echo "Lines: $(wc -l < /tmp/manifest-${{ matrix.environment }}.yaml)"
+
+      - name: Install kubeconform
+        run: |
+          curl -sLO https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar -xzf kubeconform-linux-amd64.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Schema validation
+        run: |
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            "/tmp/manifest-${{ matrix.environment }}.yaml"
+          echo "Schema validation passed for ${{ matrix.environment }}"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan for committed secrets (detect-secrets)
+        uses: Yelp/detect-secrets-action@v1
+        with:
+          # Baseline file tracks known false positives
+          baseline_file: .secrets.baseline
+
+      - name: Trivy IaC scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: k8s/
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          # Ignore secrets.env files since they're gitignored placeholders
+          trivyignores: .trivyignore
+
+  lint-ansible:
+    name: Lint Ansible Playbooks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ansible-lint
+        run: pip install ansible-lint
+
+      - name: Run ansible-lint
+        run: |
+          ansible-lint ansible/playbooks/ || true  # Warn but don't fail on lint errors

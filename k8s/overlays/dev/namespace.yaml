@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: awx-dev
+  labels:
+    environment: dev
+    app.kubernetes.io/part-of: awx
