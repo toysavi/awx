@@ -1,0 +1,44 @@
+# .github/workflows/validate.yml
+# Runs on every PR — validates compose file and scans for secrets
+name: Validate PR
+
+on:
+  pull_request:
+    branches: [main, 'release/**']
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml syntax
+        run: |
+          cat > .env << 'EOF'
+          POSTGRES_PASSWORD=placeholder
+          AWX_ADMIN_PASSWORD=placeholder
+          SECRET_KEY=placeholder_secret_key_for_validation_only_not_real
+          EOF
+          docker compose config --quiet
+          echo "Compose file valid."
+
+      - name: Lint nginx config
+        run: |
+          docker run --rm \
+            -v "$PWD/nginx/awx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine nginx -t
+
+      - name: Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: 1
+          trivyignores: .trivyignore
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

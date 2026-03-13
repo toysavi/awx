@@ -1,0 +1,44 @@
+---
+# ansible/playbooks/site.yml
+# Master playbook — used as AWX Job Template
+# In AWX: create a Project pointing to this Git repo,
+# then create a Job Template using this playbook.
+- name: Full site deployment
+  hosts: all
+  gather_facts: true
+  become: true
+
+  pre_tasks:
+    - name: Print deployment info
+      ansible.builtin.debug:
+        msg: |
+          Deploying to: {{ inventory_hostname }}
+          Environment:  {{ environment | default('unknown') }}
+          AWX Job ID:   {{ awx_job_id | default('local') }}
+
+    - name: Check OS compatibility
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "Requires Debian/Ubuntu. Found: {{ ansible_distribution }}"
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install common packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wget
+          - git
+          - unzip
+          - htop
+        state: present
+
+  post_tasks:
+    - name: Done
+      ansible.builtin.debug:
+        msg: "Deployment complete on {{ inventory_hostname }}"
