@@ -1,0 +1,50 @@
+---
+# AWX Instance — Dev/UAT
+# Apply: kubectl apply -f k8s/awx/awx-instance.yaml
+# Requires: PUBLIC_IP environment variable or replace manually
+
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx
+  namespace: awx
+spec:
+  # ── Ingress ───────────────────────────────────────────────
+  service_type: ClusterIP
+  ingress_type: ingress
+  ingress_class_name: traefik
+  hostname: awx.REPLACE_WITH_IP.nip.io   # Replace with your IP
+
+  # ── Admin ─────────────────────────────────────────────────
+  admin_user: admin
+  admin_email: admin@example.com
+
+  # ── Storage ───────────────────────────────────────────────
+  postgres_storage_class: local-path
+  projects_storage_class: local-path
+  projects_storage_size: 8Gi
+
+  # ── Resources (Dev) ───────────────────────────────────────
+  web_resource_requirements:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 2000m
+
+  task_resource_requirements:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 2000m
+
+  ee_resource_requirements:
+    requests:
+      memory: 64Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m

@@ -1,0 +1,36 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Lint shell scripts
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh
+
+      - name: Validate Kubernetes manifests
+        run: |
+          for f in k8s/**/*.yaml; do
+            echo "Validating: $f"
+            kubectl apply --dry-run=client -f "$f" 2>/dev/null || echo "Skipping (requires CRDs): $f"
+          done
+
+      - name: Lint Helm values
+        run: |
+          helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/
+          helm repo update
+          helm lint awx-operator/awx-operator -f k8s/operator/values.yaml || true

@@ -1,0 +1,31 @@
+# Secrets
+.env
+*.env
+!*.env.example
+*secret*
+*password*
+kubeconfig
+*.kubeconfig
+~/.kube/
+
+# Backups
+/backups/
+*.sql
+*.sql.gz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Terraform (if used later)
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
