@@ -1,0 +1,49 @@
+---
+# Let's Encrypt TLS — for real domains only
+# Prerequisites:
+#   1. Real domain pointed to your server IP in DNS
+#   2. Port 80 open for ACME HTTP challenge
+#
+# Steps:
+#   1. Replace yourdomain.com with your actual domain
+#   2. Replace admin@yourdomain.com with your email
+#   3. kubectl apply -f traefik/tls/letsencrypt.yaml
+#   4. Update AWX hostname: kubectl edit awx awx -n awx
+#   5. Update Rancher hostname (see README)
+
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    additionalArguments:
+      - "--certificatesresolvers.letsencrypt.acme.email=admin@yourdomain.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      # Staging server (remove for production to avoid rate limits during testing):
+      # - "--certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--serversTransport.insecureSkipVerify=true"
+
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 128Mi
+      path: /data
+      accessMode: ReadWriteOnce
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: kube-system
+spec:
+  defaultGeneratedCert:
+    resolver: letsencrypt
+    domain:
+      main: "yourdomain.com"
+      sans:
+        - "*.yourdomain.com"

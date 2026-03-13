@@ -1,4 +1,4 @@
-# Secrets
+# Secrets — never commit these
 .env
 *.env
 !*.env.example
@@ -7,6 +7,10 @@
 kubeconfig
 *.kubeconfig
 ~/.kube/
+acme.json
+
+# AWX exports (contain sensitive data)
+awx-config/export_*/
 
 # Backups
 /backups/
@@ -22,10 +26,3 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-
-# Terraform (if used later)
-.terraform/
-*.tfstate
-*.tfstate.backup
-*.tfvars
-!*.tfvars.example

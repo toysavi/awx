@@ -1,0 +1,33 @@
+---
+# AWX Job Schedules
+# Applied by: ansible-playbook awx-config/scripts/configure-all.yml --tags schedules
+#
+# RRULE format: https://icalendar.org/RFC-Specifications/iCalendar-RFC-5545/
+# Timezone: Asia/Phnom_Penh (UTC+7)
+# Generator: https://www.textmagic.com/free-tools/rrule-generator
+
+schedules:
+
+  # ── Daily DB Backup — 1:00 AM ──────────────────────────
+  - name: "Daily - Database Backup"
+    job_template: "Backup - Database"
+    enabled: true
+    rrule: "DTSTART;TZID=Asia/Phnom_Penh:20260101T010000 RRULE:FREQ=DAILY;INTERVAL=1"
+
+  # ── Weekly OS Patching — Sunday 2:00 AM ────────────────
+  - name: "Weekly - OS Patching UAT"
+    job_template: "Patch - OS Updates"
+    enabled: true
+    rrule: "DTSTART;TZID=Asia/Phnom_Penh:20260101T020000 RRULE:FREQ=WEEKLY;BYDAY=SU;INTERVAL=1"
+
+  # ── Daily Ping Check — Every 4 hours ──────────────────
+  - name: "Every 4h - Connectivity Check"
+    job_template: "Ping All Hosts"
+    enabled: true
+    rrule: "DTSTART;TZID=Asia/Phnom_Penh:20260101T000000 RRULE:FREQ=HOURLY;INTERVAL=4"
+
+  # ── AWX Self-Configure — Monday 3:00 AM ────────────────
+  - name: "Weekly - AWX Self Configure"
+    job_template: "AWX - Self Configure"
+    enabled: false   # Enable after first manual run
+    rrule: "DTSTART;TZID=Asia/Phnom_Penh:20260101T030000 RRULE:FREQ=WEEKLY;BYDAY=MO;INTERVAL=1"

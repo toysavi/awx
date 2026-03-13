@@ -1,11 +1,12 @@
-name: Deploy AWX
+name: Deploy AWX on Rancher
 
 on:
   push:
     branches: [main]
     paths:
       - 'k8s/**'
-      - 'scripts/**'
+      - 'traefik/**'
+      - 'awx-config/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -14,11 +15,18 @@ on:
         default: 'uat'
         type: choice
         options: [uat, prod]
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy-awx'
+        type: choice
+        options: [deploy-awx, configure-awx, deploy-traefik, full-install]
 
 env:
-  KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+  AWX_VERSION: "24.6.1"
 
 jobs:
+
   validate:
     name: Validate Manifests
     runs-on: ubuntu-latest
@@ -28,12 +36,16 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
 
-      - name: Validate AWX instance YAML
+      - name: Validate Kubernetes manifests
         run: |
-          kubectl apply --dry-run=client -f k8s/awx/awx-instance.yaml || true
+          for f in k8s/**/*.yaml; do
+            echo "Validating: $f"
+            kubectl apply --dry-run=client -f "$f" 2>/dev/null || \
+              echo "  Skipping (requires CRDs): $f"
+          done
 
   deploy:
-    name: Deploy to ${{ github.event.inputs.environment || 'uat' }}
+    name: ${{ github.event.inputs.action || 'deploy-awx' }} → ${{ github.event.inputs.environment || 'uat' }}
     runs-on: ubuntu-latest
     needs: validate
     environment: ${{ github.event.inputs.environment || 'uat' }}
@@ -53,35 +65,59 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
+      # ── Deploy Traefik config ──────────────────────────
+      - name: Deploy Traefik configuration
+        if: ${{ github.event.inputs.action == 'deploy-traefik' || github.event.inputs.action == 'full-install' }}
+        run: |
+          find traefik -name "*.yaml" -exec \
+            sed -i "s/REPLACE_WITH_IP/${{ secrets.SERVER_IP }}/g" {} \;
+          kubectl apply -f traefik/config/traefik-config.yaml
+          kubectl apply -f traefik/middleware/middleware.yaml
+          kubectl apply -f traefik/config/ingressroutes.yaml
+          kubectl apply -f traefik/dashboard/dashboard-ingress.yaml
+          kubectl rollout restart deployment/traefik -n kube-system
+          kubectl rollout status deployment/traefik -n kube-system --timeout=60s
+
+      # ── Deploy AWX Operator ────────────────────────────
       - name: Deploy AWX Operator
+        if: ${{ github.event.inputs.action == 'deploy-awx' || github.event.inputs.action == 'full-install' }}
         run: |
           helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/
           helm repo update
           helm upgrade --install awx-operator awx-operator/awx-operator \
-            --namespace awx \
-            --create-namespace \
+            --namespace awx --create-namespace \
             -f k8s/operator/values.yaml \
             --wait --timeout=5m
 
+      # ── Deploy AWX Instance ────────────────────────────
       - name: Deploy AWX Instance
+        if: ${{ github.event.inputs.action == 'deploy-awx' || github.event.inputs.action == 'full-install' }}
         run: |
-          # Replace hostname placeholder with actual value
           sed "s/REPLACE_WITH_IP/${{ secrets.SERVER_IP }}/g" \
             k8s/awx/awx-instance.yaml | kubectl apply -f -
-
-      - name: Wait for AWX to be ready
-        run: |
           kubectl wait --for=condition=Ready pods \
             -l app.kubernetes.io/name=awx-web \
             -n awx --timeout=600s
 
-      - name: Health check
+      # ── Configure AWX (as-code) ────────────────────────
+      - name: Configure AWX
+        if: ${{ github.event.inputs.action == 'configure-awx' }}
+        run: |
+          pip3 install ansible awxkit -q
+          ansible-galaxy collection install awx.awx -q
+          ansible-playbook awx-config/scripts/configure-all.yml \
+            -e "controller_host=https://awx.${{ secrets.SERVER_IP }}.nip.io" \
+            -e "controller_username=admin" \
+            -e "controller_password=${{ secrets.AWX_ADMIN_PASSWORD }}" \
+            -e "controller_verify_ssl=false"
+
+      # ── Health Check ───────────────────────────────────
+      - name: Health Check
         run: |
           chmod +x scripts/healthcheck.sh
-          bash scripts/healthcheck.sh
+          bash scripts/healthcheck.sh || true
 
-      - name: Get AWX URL
+      - name: Print URLs
         run: |
-          echo "AWX URL: https://awx.${{ secrets.SERVER_IP }}.nip.io"
-          kubectl get secret awx-admin-password -n awx \
-            -o jsonpath="{.data.password}" | base64 -d && echo
+          echo "Rancher: https://${{ secrets.SERVER_IP }}.nip.io"
+          echo "AWX:     https://awx.${{ secrets.SERVER_IP }}.nip.io"

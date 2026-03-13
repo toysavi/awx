@@ -11,26 +11,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Install Helm
-        uses: azure/setup-helm@v3
+      - name: Install tools
+        run: |
+          sudo apt-get install -y shellcheck
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
       - name: Lint shell scripts
         run: |
-          sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh awx-config/scripts/*.sh
 
-      - name: Validate Kubernetes manifests
+      - name: Validate k8s manifests
+        uses: azure/setup-kubectl@v3
+
+      - name: Check manifests
         run: |
-          for f in k8s/**/*.yaml; do
-            echo "Validating: $f"
-            kubectl apply --dry-run=client -f "$f" 2>/dev/null || echo "Skipping (requires CRDs): $f"
+          for f in k8s/**/*.yaml traefik/**/*.yaml; do
+            echo "Checking: $f"
+            kubectl apply --dry-run=client -f "$f" 2>/dev/null || \
+              echo "  Skipping (requires CRDs): $f"
           done
 
-      - name: Lint Helm values
+      - name: Lint Helm operator values
         run: |
           helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/
           helm repo update
           helm lint awx-operator/awx-operator -f k8s/operator/values.yaml || true
+
+      - name: Check for placeholder values not replaced
+        run: |
+          echo "Checking for unreplaced REPLACE_WITH_* placeholders..."
+          if grep -r "REPLACE_WITH_ACTUAL_PRIVATE_KEY\|REPLACE_WITH_GITHUB_TOKEN\|REPLACE_BOT_TOKEN" \
+            --include="*.yml" --include="*.yaml" . 2>/dev/null; then
+            echo "WARNING: Found unreplaced credential placeholders (expected in template files)"
+          fi
+          echo "Done"

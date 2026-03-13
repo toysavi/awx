@@ -8,17 +8,14 @@ metadata:
   name: awx
   namespace: awx
 spec:
-  # ── Ingress ───────────────────────────────────────────────
   service_type: ClusterIP
   ingress_type: ingress
   ingress_class_name: traefik
-  hostname: awx.yourdomain.com            # Replace with real domain
+  hostname: awx.yourdomain.com        # Replace with real domain
 
-  # ── Admin ─────────────────────────────────────────────────
   admin_user: admin
   admin_email: admin@yourdomain.com
 
-  # ── Storage ───────────────────────────────────────────────
   postgres_storage_class: local-path
   postgres_storage_requirements:
     requests:
@@ -26,7 +23,6 @@ spec:
   projects_storage_class: local-path
   projects_storage_size: 20Gi
 
-  # ── Resources (Production) ────────────────────────────────
   web_resource_requirements:
     requests:
       memory: 1Gi
@@ -51,7 +47,6 @@ spec:
       memory: 1Gi
       cpu: 1000m
 
-  # ── Extra Settings ────────────────────────────────────────
   extra_settings:
     - setting: SESSION_COOKIE_SECURE
       value: "True"

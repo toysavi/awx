@@ -1,16 +1,17 @@
 ---
 # Ansible Playbook — Full AWX on Rancher Setup
+# Automates: k3s + Helm + cert-manager + Rancher + Traefik + AWX Operator + AWX
+#
 # Usage:
-#   ansible-playbook -i inventories/dev/hosts.yml playbooks/site.yml
-#   ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml
+#   ansible-playbook -i ansible/inventories/dev/hosts.yml ansible/playbooks/site.yml
+#   ansible-playbook -i ansible/inventories/prod/hosts.yml ansible/playbooks/site.yml
 
-- name: Setup AWX on Rancher
+- name: Deploy AWX on Rancher (k3s)
   hosts: awx_servers
   become: true
   gather_facts: true
 
   vars:
-    k3s_version: "stable"
     cert_manager_version: "v1.14.4"
     awx_version: "24.6.1"
     bootstrap_password: "admin"
@@ -24,18 +25,9 @@
 
     - name: Install required packages
       apt:
-        name:
-          - curl
-          - wget
-          - git
-          - openssl
-          - python3
-          - python3-pip
+        name: [curl, wget, git, openssl, python3, python3-pip, apache2-utils]
         state: present
 
-  tasks:
-
-    # ── System tuning ──────────────────────────────────────
     - name: Set vm.overcommit_memory
       sysctl:
         name: vm.overcommit_memory
@@ -43,26 +35,28 @@
         state: present
         reload: true
 
-    # ── k3s ────────────────────────────────────────────────
-    - name: Check if k3s is installed
+  tasks:
+
+    # ── k3s ──────────────────────────────────────────────
+    - name: Check if k3s installed
       stat:
         path: /usr/local/bin/k3s
-      register: k3s_binary
+      register: k3s_bin
 
     - name: Install k3s
       shell: |
         curl -sfL https://get.k3s.io | \
           INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644" sh -
-      when: not k3s_binary.stat.exists
+      when: not k3s_bin.stat.exists
 
-    - name: Set KUBECONFIG in /etc/environment
+    - name: Set KUBECONFIG system-wide
       lineinfile:
         path: /etc/environment
         line: 'KUBECONFIG=/etc/rancher/k3s/k3s.yaml'
         state: present
 
-    - name: Wait for k3s node to be ready
-      shell: kubectl get nodes --no-headers | grep -c Ready
+    - name: Wait for k3s node ready
+      shell: kubectl get nodes --no-headers 2>/dev/null | grep -c Ready
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       register: node_ready
@@ -70,73 +64,61 @@
       delay: 10
       until: node_ready.stdout | int >= 1
 
-    # ── Helm ───────────────────────────────────────────────
-    - name: Check if helm is installed
+    # ── Helm ─────────────────────────────────────────────
+    - name: Check if Helm installed
       stat:
         path: /usr/local/bin/helm
-      register: helm_binary
+      register: helm_bin
 
     - name: Install Helm
       shell: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-      when: not helm_binary.stat.exists
+      when: not helm_bin.stat.exists
 
-    # ── cert-manager ───────────────────────────────────────
-    - name: Install cert-manager CRDs
+    # ── cert-manager ─────────────────────────────────────
+    - name: Apply cert-manager CRDs
       shell: |
         kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    - name: Add jetstack helm repo
-      shell: helm repo add jetstack https://charts.jetstack.io --force-update
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-
     - name: Install cert-manager
       shell: |
+        helm repo add jetstack https://charts.jetstack.io --force-update
+        helm repo update
         helm upgrade --install cert-manager jetstack/cert-manager \
-          --namespace cert-manager \
-          --create-namespace \
-          --version {{ cert_manager_version }}
+          --namespace cert-manager --create-namespace \
+          --version {{ cert_manager_version }} --wait
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    # ── Rancher ────────────────────────────────────────────
-    - name: Add Rancher helm repo
-      shell: helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-
+    # ── Rancher ───────────────────────────────────────────
     - name: Install Rancher
       shell: |
+        helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
+        helm repo update
         helm upgrade --install rancher rancher-stable/rancher \
-          --namespace cattle-system \
-          --create-namespace \
+          --namespace cattle-system --create-namespace \
           --set hostname={{ rancher_hostname }} \
           --set bootstrapPassword={{ bootstrap_password }} \
           --set ingress.tls.source=rancher \
-          --set replicas=1
+          --set replicas=1 --wait --timeout=5m
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    # ── AWX Operator ───────────────────────────────────────
-    - name: Add AWX Operator helm repo
-      shell: helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/ --force-update
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-
+    # ── AWX Operator ──────────────────────────────────────
     - name: Install AWX Operator
       shell: |
+        helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/ --force-update
+        helm repo update
         helm upgrade --install awx-operator awx-operator/awx-operator \
-          --namespace awx \
-          --create-namespace
+          --namespace awx --create-namespace --wait
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-    # ── AWX Instance ───────────────────────────────────────
+    # ── AWX Instance ──────────────────────────────────────
     - name: Deploy AWX instance
       shell: |
-        kubectl apply -f - <<EOF
+        cat <<EOF | kubectl apply -f -
         apiVersion: awx.ansible.com/v1beta1
         kind: AWX
         metadata:
@@ -152,11 +134,34 @@
           postgres_storage_class: local-path
           projects_storage_class: local-path
           projects_storage_size: 8Gi
+          web_resource_requirements:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 2000m
+          task_resource_requirements:
+            requests:
+              memory: 512Mi
+              cpu: 500m
+            limits:
+              memory: 2Gi
+              cpu: 2000m
         EOF
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
   post_tasks:
+    - name: Wait for AWX web pod
+      shell: |
+        kubectl wait --for=condition=Ready pods \
+          -l app.kubernetes.io/name=awx-web \
+          -n awx --timeout=600s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      ignore_errors: true
+
     - name: Get AWX admin password
       shell: |
         kubectl get secret awx-admin-password -n awx \
@@ -166,9 +171,11 @@
       register: awx_password
       ignore_errors: true
 
-    - name: Show access info
+    - name: Print access info
       debug:
         msg:
+          - "=========================="
           - "Rancher: https://{{ rancher_hostname }}"
           - "AWX:     https://{{ awx_hostname }}"
           - "AWX admin password: {{ awx_password.stdout | default('still initializing') }}"
+          - "=========================="

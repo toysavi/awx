@@ -1,0 +1,83 @@
+---
+# AWX Workflow Templates
+# Applied by: ansible-playbook awx-config/scripts/configure-all.yml --tags workflows
+#
+# Note: Workflow nodes are created via awx.awx.workflow_job_template_node
+# This file defines the workflows and their node chains.
+
+workflows:
+
+  # ── Full Deploy Pipeline ────────────────────────────────
+  - name: "Pipeline - Full Deploy UAT"
+    description: "Full deployment pipeline: backup → patch → deploy → verify"
+    organization: "PhillipBank"
+    ask_variables_on_launch: true
+    extra_vars:
+      env: uat
+    nodes:
+      - identifier: "backup"
+        job_template: "Backup - Database"
+        success_nodes:
+          - "patch"
+        failure_nodes:
+          - "notify-failure"
+
+      - identifier: "patch"
+        job_template: "Patch - OS Updates"
+        success_nodes:
+          - "deploy"
+        failure_nodes:
+          - "notify-failure"
+
+      - identifier: "deploy"
+        job_template: "Deploy - Application"
+        success_nodes:
+          - "ping-verify"
+        failure_nodes:
+          - "notify-failure"
+
+      - identifier: "ping-verify"
+        job_template: "Ping All Hosts"
+        success_nodes:
+          - "notify-success"
+        failure_nodes:
+          - "notify-failure"
+
+      - identifier: "notify-success"
+        notification_templates_started: []
+        notification_templates_success:
+          - "Telegram - Ops Alerts"
+
+      - identifier: "notify-failure"
+        notification_templates_error:
+          - "Telegram - Ops Alerts"
+
+  # ── Production Deploy Pipeline ──────────────────────────
+  - name: "Pipeline - Production Deploy"
+    description: "Production deployment with approval gate"
+    organization: "PhillipBank"
+    ask_variables_on_launch: true
+    extra_vars:
+      env: prod
+    nodes:
+      - identifier: "backup-prod"
+        job_template: "Backup - Database"
+        success_nodes:
+          - "deploy-prod"
+        failure_nodes:
+          - "notify-failure-prod"
+
+      - identifier: "deploy-prod"
+        job_template: "Deploy - Application (Production)"
+        success_nodes:
+          - "notify-success-prod"
+        failure_nodes:
+          - "notify-failure-prod"
+
+      - identifier: "notify-success-prod"
+        notification_templates_success:
+          - "Telegram - Ops Alerts"
+
+      - identifier: "notify-failure-prod"
+        notification_templates_error:
+          - "Telegram - Ops Alerts"

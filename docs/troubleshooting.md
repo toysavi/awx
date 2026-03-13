@@ -1,12 +1,39 @@
 # Troubleshooting Guide
 
-## Common Issues
+## Quick Reference
+
+```bash
+# All AWX pods
+kubectl get pods -n awx
+
+# AWX web logs
+kubectl logs -n awx -l app.kubernetes.io/name=awx-web -f
+
+# AWX task logs
+kubectl logs -n awx -l app.kubernetes.io/name=awx-task -f
+
+# AWX operator logs
+kubectl logs -n awx -l control-plane=controller-manager -f
+
+# Rancher logs
+kubectl logs -n cattle-system -l app=rancher -f
+
+# Traefik logs
+kubectl logs -n kube-system -l app.kubernetes.io/name=traefik -f
+
+# All ingress routes
+kubectl get ingressroute -A
+
+# All services
+kubectl get svc -A
+```
 
 ---
 
+## Common Issues
+
 ### kubectl: connection refused (localhost:8080)
 
-**Symptom:**
 ```
 The connection to the server localhost:8080 was refused
 ```
@@ -15,20 +42,15 @@ The connection to the server localhost:8080 was refused
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ---
 
-### Traefik LoadBalancer stuck at `<pending>`
+### Traefik LoadBalancer `<pending>`
 
-**Symptom:**
-```
-traefik   LoadBalancer   10.43.x.x   <pending>   80:31xxx/TCP,443:30xxx/TCP
-```
-
-**Fix:** Ensure servicelb is enabled (not disabled in k3s install):
+**Fix:** Re-enable servicelb (do not use `--disable=servicelb` in k3s install):
 ```bash
-# Reinstall k3s without --disable=servicelb
 curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644" sh -
 ```
 
@@ -36,87 +58,55 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --write-kubeconfig-mode=
 
 ### AWX pod stuck in `Init:0/2`
 
-**Symptom:** `awx-task` shows `Init:0/2` for a long time
-
-**Cause:** Database migrations running in `awx-migration` pod
-
-**Fix:** Wait for migrations to complete:
+Database migrations are still running. Wait and watch:
 ```bash
-kubectl logs -n awx -l job-name -f
 kubectl get pods -n awx -w
+kubectl logs -n awx -l job-name -f
 ```
 
 ---
 
-### AWX: SECRET_KEY is empty
+### AWX: 502 Bad Gateway
 
-**Symptom:**
-```
-ImproperlyConfigured: The SECRET_KEY setting must not be empty
-```
-
-**Fix:** SECRET_KEY must be in `/etc/tower/settings.py`, not just env vars:
+AWX is still starting up. Check:
 ```bash
-# Check the secret exists
-kubectl get secret awx-secret-key -n awx
-```
-
----
-
-### Redis: Permission denied on Unix socket
-
-**Symptom:**
-```
-Failed opening Unix socket: bind: Permission denied
-```
-
-**Fix:** Use a host bind mount with `chmod 777`:
-```bash
-mkdir -p /awx/redis-socket
-chmod 777 /awx/redis-socket
-```
-
----
-
-### Rancher: Certificate warning in browser
-
-**Symptom:** Browser shows "Your connection is not private"
-
-**Fix:** This is expected with self-signed certs. Click **Advanced → Proceed**.
-
-For production, use a real domain with Let's Encrypt:
-```bash
-helm upgrade rancher rancher-stable/rancher \
-  --namespace cattle-system \
-  --set hostname=rancher.yourdomain.com \
-  --set ingress.tls.source=letsEncrypt \
-  --set letsEncrypt.email=admin@yourdomain.com
+kubectl get pods -n awx
+kubectl logs -n awx -l app.kubernetes.io/name=awx-web --tail=50
 ```
 
 ---
 
 ### AWX Operator Helm repo 404
 
-**Symptom:**
-```
-failed to fetch https://ansible.github.io/awx-operator/index.yaml: 404 Not Found
-```
-
-**Fix:** The repo moved. Use the correct URL:
+The repo URL changed. Use the correct one:
 ```bash
 helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/
 ```
 
 ---
 
-### AWX web shows "Bad Gateway"
+### Rancher certificate warning in browser
 
-**Symptom:** 502 Bad Gateway when accessing AWX URL
+Expected with self-signed cert (nip.io). Click **Advanced → Proceed**.
 
-**Fix:** AWX is still starting. Wait and check:
+For Let's Encrypt (real domain):
 ```bash
-kubectl get pods -n awx
-kubectl logs -n awx -l app.kubernetes.io/name=awx-web -f
+helm upgrade rancher rancher-stable/rancher \
+  --namespace cattle-system \
+  --set hostname=rancher.yourdomain.com \
+  --set ingress.tls.source=letsEncrypt \
+  --set letsEncrypt.email=admin@yourdomain.com \
+  --reuse-values
+```
+
+---
+
+### Traefik dashboard returns 404
+
+Trailing slash is required:
+```
+https://traefik.YOUR_IP.nip.io/dashboard/   ✅
+https://traefik.YOUR_IP.nip.io/dashboard    ❌
 ```
 
 ---
@@ -139,7 +129,7 @@ kubectl exec -n awx deployment/awx-web -- \
 
 ---
 
-### Full reset (nuclear option)
+### Full reset
 
 ```bash
 ./scripts/uninstall.sh --all --data
@@ -151,31 +141,26 @@ kubectl exec -n awx deployment/awx-web -- \
 ## Useful Commands
 
 ```bash
-# Watch all AWX pods
-kubectl get pods -n awx -w
-
-# AWX web logs
-kubectl logs -n awx -l app.kubernetes.io/name=awx-web -f
-
-# AWX task logs
-kubectl logs -n awx -l app.kubernetes.io/name=awx-task -f
-
-# AWX operator logs
-kubectl logs -n awx -l control-plane=controller-manager -f
-
-# Rancher logs
-kubectl logs -n cattle-system -l app=rancher -f
-
-# Traefik logs
-kubectl logs -n kube-system -l app.kubernetes.io/name=traefik -f
-
-# Check ingress routes
-kubectl get ingress -n awx
-kubectl get ingress -n cattle-system
-
-# Check PVCs
-kubectl get pvc -n awx
-
 # Check all resources in awx namespace
 kubectl get all -n awx
+
+# Check PVCs (persistent data)
+kubectl get pvc -n awx
+
+# Check Traefik middleware
+kubectl get middleware -A
+
+# Restart AWX web pod
+kubectl rollout restart deployment/awx-web -n awx
+
+# Restart Traefik
+kubectl rollout restart deployment/traefik -n kube-system
+
+# Check cert-manager certificates
+kubectl get certificates -A
+kubectl describe certificate -n awx
+
+# Check k3s service
+systemctl status k3s
+journalctl -u k3s -f
 ```

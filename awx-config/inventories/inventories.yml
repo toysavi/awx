@@ -1,0 +1,47 @@
+---
+inventories:
+
+  - name: "UAT Environment"
+    description: "UAT servers"
+    organization: "PhillipBank"
+    variables:
+      env: uat
+      ansible_python_interpreter: /usr/bin/python3
+    hosts:
+      - name: "uat-awx01"
+        description: "AWX server"
+        variables:
+          ansible_host: "10.0.0.4"
+          ansible_user: "azureuser"
+    groups:
+      - name: "awx_servers"
+        description: "AWX servers"
+        hosts:
+          - "uat-awx01"
+      - name: "web_servers"
+        description: "Web servers"
+        hosts: []
+      - name: "db_servers"
+        description: "Database servers"
+        hosts: []
+
+  - name: "Production Environment"
+    description: "Production servers"
+    organization: "PhillipBank"
+    variables:
+      env: prod
+      ansible_python_interpreter: /usr/bin/python3
+    hosts:
+      - name: "prod-server-01"
+        description: "Production server 01"
+        variables:
+          ansible_host: "REPLACE_WITH_PROD_IP"
+          ansible_user: "azureuser"
+    groups:
+      - name: "web_servers"
+        description: "Production web servers"
+        hosts:
+          - "prod-server-01"
+      - name: "db_servers"
+        description: "Production database servers"
+        hosts: []

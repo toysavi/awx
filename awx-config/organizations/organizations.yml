@@ -1,0 +1,43 @@
+---
+organizations:
+  - name: "PhillipBank"
+    description: "Phillip Bank IT Operations"
+    max_hosts: 0
+
+  - name: "Default"
+    description: "Default organization"
+
+teams:
+  - name: "Ops Team"
+    description: "Operations engineers — full access"
+    organization: "PhillipBank"
+
+  - name: "Dev Team"
+    description: "Developers — execute only"
+    organization: "PhillipBank"
+
+  - name: "Read Only"
+    description: "Auditors — read only"
+    organization: "PhillipBank"
+
+users:
+  - username: "ops_engineer"
+    password: "ChangeMe123!"
+    email: "ops@phillipbank.com.kh"
+    first_name: "Ops"
+    last_name: "Engineer"
+    is_superuser: false
+
+  - username: "developer"
+    password: "ChangeMe123!"
+    email: "dev@phillipbank.com.kh"
+    first_name: "Dev"
+    last_name: "User"
+    is_superuser: false
+
+  - username: "auditor"
+    password: "ChangeMe123!"
+    email: "audit@phillipbank.com.kh"
+    first_name: "Audit"
+    last_name: "User"
+    is_superuser: false
