@@ -34,10 +34,10 @@ k3s (Kubernetes v1.34+)
 
 ---
 
-## Quick Start
+## Quick Start 
 
 ```bash
-git clone https://github.com/yourorg/awx-rancher.git
+git clone https://github.com/toysavi/awx.git
 cd awx-rancher
 chmod +x scripts/*.sh
 ./scripts/install.sh
