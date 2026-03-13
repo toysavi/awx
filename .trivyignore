@@ -1,8 +1,0 @@
-# .trivyignore
-# Suppress known false positives in Trivy IaC scanning
-
-# secrets.env placeholder files are gitignored and contain only example values
-k8s/overlays/dev/secrets.env
-k8s/overlays/staging/secrets.env
-k8s/overlays/prod/secrets.env
-k8s/base/secrets.env.example
