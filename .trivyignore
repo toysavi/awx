@@ -1,6 +1,0 @@
-# .trivyignore
-# Suppress Trivy false positives
-.env.example
-envs/dev.env
-envs/staging.env
-envs/prod.env
