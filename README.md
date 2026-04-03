@@ -1,137 +1,67 @@
 # 🚀 DevOps Platform Deployment (K3s + Rancher + Argo CD + AWX + GitLab EE)
 
 ## 📌 Overview
+This repository provides a **complete DevOps platform deployment** from scratch with:
 
-This project provides a **complete DevOps platform** built on:
-
-* K3s
-* Traefik (default ingress, HTTPS 443)
-* Rancher
-* Argo CD
-* AWX
-* GitLab Enterprise Edition
-* LDAP integration (centralized authentication)
-
----
-
-# 🧱 Architecture
-
-## 🏭 Production
-
-| Server   | Purpose           |
-| -------- | ----------------- |
-| Server 1 | Rancher + Argo CD |
-| Server 2 | AWX               |
-| Server 3 | GitLab EE         |
-
-## 🧪 UAT
-
-* Single server running all components
+- :contentReference[oaicite:0]{index=0}
+- :contentReference[oaicite:1]{index=1}
+- :contentReference[oaicite:2]{index=2}
+- :contentReference[oaicite:3]{index=3}
+- :contentReference[oaicite:4]{index=4}
+- :contentReference[oaicite:5]{index=5}
+- LDAP integration for centralized authentication
+- All services exposed via HTTPS (port 443) using FQDN
 
 ---
 
-# 🌐 Network & Access
+## 🏗 Stage 1: Prerequisites
 
-All services are exposed via **HTTPS (443)** using Traefik:
+### 1️⃣ Hardware Requirements
 
-| Service | URL                        |
-| ------- | -------------------------- |
-| Rancher | https://rancher.domain.com |
-| Argo CD | https://argocd.domain.com  |
-| AWX     | https://awx.domain.com     |
-| GitLab  | https://gitlab.domain.com  |
-
----
-
-# ⚙️ Requirements
-
-## 🖥️ Minimum Hardware
-
-### Production
-
-| Component         | CPU | RAM     | Storage |
-| ----------------- | --- | ------- | ------- |
-| Rancher + Argo CD | 2   | 4 GB    | 50 GB   |
-| AWX               | 4   | 8 GB    | 50 GB   |
-| GitLab EE         | 4   | 8–16 GB | 100+ GB |
-
-### UAT (All-in-one)
-
-* CPU: 8 cores
-* RAM: 16 GB minimum
-* Storage: 150+ GB
+| Service / Setup | CPU | RAM | Storage |
+|----------------|-----|-----|--------|
+| Production: Rancher + Argo CD | 2 | 4 GB | 50 GB |
+| Production: AWX | 4 | 8 GB | 50 GB |
+| Production: GitLab EE | 4 | 8–16 GB | 100+ GB |
+| UAT / All-in-One | 8 | 16 GB | 150+ GB |
 
 ---
 
-## 🌍 DNS Requirements
+### 2️⃣ DNS Configuration
 
-Configure A records:
+Create A records pointing to your server IP:
 
-```
+```text
 rancher.domain.com → SERVER_IP
 argocd.domain.com → SERVER_IP
 awx.domain.com → SERVER_IP
 gitlab.domain.com → SERVER_IP
 ```
-
----
-
-## 🔐 SSL Requirements
-
-Provide:
-
-* `tls.crt`
-* `tls.key`
-
-Wildcard cert recommended:
-
-```
-*.domain.com
+### 3️⃣ Firewall
+```text
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 ```
 
----
+### 4️⃣ SSL Certificates
 
-## 🔓 Firewall
+Provide your own SSL certificate:
+- `tls.crt`
+- `tls.key`
 
-Open ports:
+Recommended: wildcard certificate `*.domain.com`.
 
-```bash
-80/tcp
-443/tcp
+## 🏗 Stage 2: Preparation
+
+### 1️⃣ Clone Repository
 ```
-
----
-
-# 📁 Project Structure
-
+git clone https://github.com/your-org/devops-platform.git
+cd devops-platform
 ```
-platform/
-├── config.env
-├── install.sh
-├── deploy-core.sh
-├── deploy-gitlab.sh
-├── deploy-awx.sh
-├── ldap/
-│   └── ldap-config.sh
-├── templates/
-│   ├── ingress.yaml.tpl
-│   ├── gitlab-values.yaml.tpl
-│   └── awx.yaml.tpl
+### 2️⃣ Configure Variables
+Edit `config.env`:
 ```
-
----
-
-# ⚙️ Configuration
-
-Edit:
-
-```
-config.env
-```
-
-Example:
-
-```bash
+# ===== DOMAIN =====
 DOMAIN=example.com
 
 RANCHER_HOST=rancher.${DOMAIN}
@@ -139,179 +69,127 @@ ARGOCD_HOST=argocd.${DOMAIN}
 AWX_HOST=awx.${DOMAIN}
 GITLAB_HOST=gitlab.${DOMAIN}
 
+# ===== SSL =====
 SSL_CERT_PATH=/opt/ssl/tls.crt
 SSL_KEY_PATH=/opt/ssl/tls.key
+
+# ===== LDAP =====
+LDAP_HOST=ldap.example.com
+LDAP_PORT=389
+LDAP_BIND_DN="cn=admin,dc=example,dc=com"
+LDAP_BIND_PASSWORD=adminpassword
+LDAP_BASE_DN="dc=example,dc=com"
+
+# ===== RANCHER =====
+RANCHER_BOOTSTRAP_PASSWORD=Admin123!
+
+# ===== GITLAB =====
+GITLAB_ROOT_PASSWORD=GitlabAdmin123!
+
+# ===== KUBERNETES =====
+KUBECONFIG_PATH=/etc/rancher/k3s/k3s.yaml
+
+# ===== Persistent Volumes =====
+# GitLab
+PV_GITLAB_POSTGRES=/mnt/pv/gitlab/postgres
+PV_GITLAB_GITALY=/mnt/pv/gitlab/gitaly
+PV_GITLAB_LOGS=/mnt/pv/gitlab/logs
+
+# AWX
+PV_AWX_POSTGRES=/mnt/pv/awx/postgres
+PV_AWX_PROJECTS=/mnt/pv/awx/projects
+
+# Argo CD
+PV_ARGOCD_REPOS=/mnt/pv/argocd/repos
 ```
+### 3️⃣ Install Dependencies & K3s
 
----
-
-# 🚀 Deployment Guide
-
-## 🧩 Step 1: Install Base System
-
-```bash
+```
 chmod +x install.sh
 ./install.sh
 ```
+- Installs K3s, `kubectl`, `Helm`
+- Copies kubeconfig to `$HOME/.kube/config`
 
-This will install:
+### 4️⃣ Create Persistent Volume Directories
 
-* K3s
-* kubectl
-* Helm
+```
+chmod +x create-pv-dirs.sh
+./create-pv-dirs.sh
+```
+- Creates all directories defined in `config.env`
+- Sets permissions to `755` and owned by current user
 
----
+## 🏗 Stage 3: Deployment
 
-## 🧠 Step 2: Deploy Core Services
+### 1️⃣ Deploy Core Services (Rancher + Argo CD)
 
-```bash
+```
 chmod +x deploy-core.sh
 ./deploy-core.sh
 ```
+- Creates namespaces `cattle-system` and `argocd`
+- Deploys Rancher and Argo CD
+- Applies TLS secrets from your SSL certificate
+- Configures ingress routing for FQDNs
 
-Deploys:
+### 2️⃣ Deploy GitLab EE
 
-* Rancher
-* Argo CD
-* TLS configuration
-* Ingress (Traefik)
-
----
-
-## 🦊 Step 3: Deploy GitLab EE
-
-```bash
+```
 chmod +x deploy-gitlab.sh
 ./deploy-gitlab.sh
 ```
+- Deploys GitLab Enterprise Edition via Helm
+- Uses persistent volumes from `config.env`
+- Configures root password via `config.env`
+- TLS configured using provided certificate
 
-⚠️ This step may take **10–20 minutes**
+### 3️⃣ Deploy AWX via Argo CD
 
----
-
-## 🤖 Step 4: Deploy AWX
-
-```bash
+```
 chmod +x deploy-awx.sh
 ./deploy-awx.sh
 ```
+- AWX deployed as an `Argo CD application`
+- Uses persistent volumes for PostgreSQL and project data
+- Configured TLS via provided certificate
 
-AWX will be deployed via Argo CD (GitOps).
-
----
-
-## 🔐 Step 5: Configure LDAP
-
-```bash
-cd ldap
-chmod +x ldap-config.sh
-./ldap-config.sh
-```
-
-LDAP will be applied to:
-
-* Rancher
-* Argo CD
-* AWX
-* GitLab
-
----
-
-# 🔍 Verification
-
+## 🧩 Stage 4: Verification
 Check pods:
 
-```bash
+```
 kubectl get pods -A
 ```
-
+Check persistent volumes:
+```
+kubectl get pvc -A
+```
 Check ingress:
-
-```bash
+```
 kubectl get ingress -A
 ```
+### 🔑 Access Credentials
+
+| Service | User  | Password                   |
+| ------- | ----- | -------------------------- |
+| Rancher | admin | RANCHER_BOOTSTRAP_PASSWORD |
+| Argo CD | admin | admin (change after login) |
+| GitLab  | root  | GITLAB_ROOT_PASSWORD       |
+| AWX     | admin | defined in AWX Helm values |
+
+### ⚠️ Notes
+
+- All services are exposed via HTTPS (443) using Traefik
+- Persistent volumes created automatically from config.env
+- LDAP integration can be added in Helm values and AWX/Rancher/Argo CD configs
+- Recommended for production: use NFS or cloud storage for PVs
+- Run `kubectl rollout restart deployment <name> -n <namespace>` to restart services if needed
+
+
 
 ---
 
-# 🔑 Access
-
-| Service | Default User |
-| ------- | ------------ |
-| Rancher | admin        |
-| Argo CD | admin        |
-| GitLab  | root         |
-| AWX     | admin        |
-
-Passwords are defined in:
-
-```
-config.env
-```
-
----
-
-# ⚠️ Notes
-
-* All services use **port 443 externally**
-* Traefik handles routing via hostname
-* Internal service ports remain unchanged
-* GitLab requires high resources
-
----
-
-# 🔧 Troubleshooting
-
-## Check Traefik
-
-```bash
-kubectl get pods -n kube-system | grep traefik
-```
-
-## Check Logs
-
-```bash
-kubectl logs -n cattle-system deploy/rancher
-kubectl logs -n argocd deploy/argocd-server
-```
-
-## Restart Deployment
-
-```bash
-kubectl rollout restart deployment <name> -n <namespace>
-```
-
----
-
-# 🧠 Best Practices
-
-* Use wildcard SSL certificate
-* Use external database for production
-* Enable backups (Velero recommended)
-* Avoid running everything on one node in production
-
----
-
-# 🎯 Result
-
-You will have a fully integrated platform:
-
-* 🔐 LDAP Authentication
-* 🔄 GitOps Deployment (Argo CD)
-* 🐄 Cluster Management (Rancher)
-* 🤖 Automation (AWX)
-* 🦊 CI/CD (GitLab EE)
-* 🌐 HTTPS via Traefik (443)
-
----
-
-# 📌 Next Improvements
-
-* HA cluster setup
-* External PostgreSQL for AWX & GitLab
-* Monitoring (Prometheus + Grafana)
-* Secrets management (Vault)
-
----
-
-**Author:** DevOps Platform Bootstrap
-**Version:** 1.0
+**Author:** DevOps Platform 
+**Version:** 1.0  
+**Date:** 2026-04-03  
+**Copyright:** © 2026 DevOps Platform Bootstrap. All rights reserved.
