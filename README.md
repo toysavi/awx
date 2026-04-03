@@ -56,7 +56,7 @@ Recommended: wildcard certificate `*.domain.com`.
 ### 1️⃣ Clone Repository
 ```
 git clone https://github.com/toysavi/awx.git /devops-platform
-cd devops-platform
+cd /devops-platform
 ```
 ### 2️⃣ Configure Variables
 Edit `config.env`:
