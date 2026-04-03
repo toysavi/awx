@@ -4,10 +4,14 @@ source config.env
 
 create_dir() {
     DIR_PATH=$1
-    echo "Creating directory: $DIR_PATH"
-    sudo mkdir -p $DIR_PATH
-    sudo chown $(whoami):$(whoami) $DIR_PATH
-    sudo chmod 755 $DIR_PATH
+    if [ ! -d "$DIR_PATH" ]; then
+        echo "Creating directory: $DIR_PATH"
+        sudo mkdir -p $DIR_PATH
+        sudo chown $(whoami):$(whoami) $DIR_PATH
+        sudo chmod 755 $DIR_PATH
+    else
+        echo "Directory exists: $DIR_PATH"
+    fi
 }
 
 # GitLab
