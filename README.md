@@ -3,12 +3,12 @@
 ## 📌 Overview
 This repository provides a **complete DevOps platform deployment** from scratch with:
 
-- :contentReference[oaicite:0]{index=0}
-- :contentReference[oaicite:1]{index=1}
-- :contentReference[oaicite:2]{index=2}
-- :contentReference[oaicite:3]{index=3}
-- :contentReference[oaicite:4]{index=4}
-- :contentReference[oaicite:5]{index=5}
+- K3s – lightweight Kubernetes distribution
+- Traefik – Kubernetes ingress controller
+- Rancher – Kubernetes management platform
+- Argo CD – GitOps continuous delivery tool
+- AWX – Ansible web UI project
+- GitLab Enterprise Edition – DevOps platform
 - LDAP integration for centralized authentication
 - All services exposed via HTTPS (port 443) using FQDN
 
