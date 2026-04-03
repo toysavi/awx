@@ -55,6 +55,7 @@ Recommended: wildcard certificate `*.domain.com`.
 
 ### 1️⃣ Clone Repository
 ```
+mkdir -p /opt/ssl
 git clone https://github.com/toysavi/awx.git /devops-platform
 cd /devops-platform
 ```
