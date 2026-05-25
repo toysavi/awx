@@ -68,17 +68,21 @@ Define your Oracle Linux host(s) in `inventory/hosts.yml`:
 ## 🚀 Installation Steps
 
 1. Clone the repository
-```git clone https://your-repo/ansible-awx-k3s.git
+```
+git clone https://your-repo/ansible-awx-k3s.git
 cd ansible-awx-k3s
 ```
 2. Run the playbook
-```ansible-playbook -i inventory/hosts.yml playbooks/site.yml
+```
+ansible-playbook -i inventory/hosts.yml playbooks/site.yml
 ```
 3. Verify k3s cluster
-```kubectl get nodes
+```
+kubectl get nodes
 ```
 4. Check AWX deployment
-```kubectl get pods -n awx
+```
+kubectl get pods -n awx
 ```
 
 5. Access AWX
@@ -116,7 +120,8 @@ spec:
                   number: 80
 ```
 1. Install cert-manager:
-```kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+```
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
 ```
 2. Create ClusterIssuer for Let’s Encrypt (example for production):
 
@@ -136,14 +141,17 @@ spec:
             class: traefik
 ```
 Apply it:
-```kubectl apply -f clusterissuer.yaml
+```
+kubectl apply -f clusterissuer.yaml
 ```
 3. Deploy ingress with TLS:
 - Your updated `ingress.yml.j2` will generate the manifest with TLS enabled.
 - Run:
-```ansible-playbook -i inventory/hosts.yml playbooks/site.yml
+```
+ansible-playbook -i inventory/hosts.yml playbooks/site.yml
 ```
 4. Verify certificate:
-```kubectl describe certificate awx-tls-secret
+```
+kubectl describe certificate awx-tls-secret
 ```
 
