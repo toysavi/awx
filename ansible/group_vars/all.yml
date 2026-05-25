@@ -1,5 +1,4 @@
 fqdn: "awx.example.com"
-timezone: "Asia/Phnom_Penh"
 k3s_version: "v1.29.3+k3s1"
 storage_class: "local-path"
 postgres_storage_size: "20Gi"
