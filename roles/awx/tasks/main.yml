@@ -1,0 +1,7 @@
+- name: Deploy AWX
+  template:
+    src: awx.yml.j2
+    dest: /tmp/awx.yml
+
+- name: Apply AWX manifest
+  shell: kubectl apply -f /tmp/awx.yml

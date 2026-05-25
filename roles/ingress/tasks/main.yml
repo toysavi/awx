@@ -1,0 +1,7 @@
+- name: Deploy Ingress
+  template:
+    src: ingress.yml.j2
+    dest: /tmp/ingress.yml
+
+- name: Apply Ingress manifest
+  shell: kubectl apply -f /tmp/ingress.yml
