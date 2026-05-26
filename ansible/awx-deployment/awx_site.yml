@@ -46,6 +46,6 @@
   hosts: k3s_masters[0]
   become: true
   tags: [cert_manager]
-  when: certmanager_enabled | bool
   roles:
     - role: cert_manager
+      when: certmanager_enabled | bool
