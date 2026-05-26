@@ -50,13 +50,19 @@
   register: awx_apply
   changed_when: "'created' in awx_apply.stdout or 'configured' in awx_apply.stdout"
 
-- name: Wait for AWX PostgreSQL StatefulSet
-  command: >
-    k3s kubectl rollout status statefulset/awx-postgres-13
-    -n {{ awx_namespace }} --timeout=600s
+- name: Get PostgreSQL StatefulSet name
+  shell: |
+    k3s kubectl get statefulset -n {{ awx_namespace }} \
+    -o jsonpath='{.items[0].metadata.name}'
+  register: postgres_sts
   changed_when: false
-  retries: 5
-  delay: 30
+
+- name: Wait for PostgreSQL StatefulSet
+  command: >
+    k3s kubectl rollout status
+    statefulset/{{ postgres_sts.stdout }}
+    -n {{ awx_namespace }}
+    --timeout=600s
 
 - name: Wait for AWX web deployment
   command: >

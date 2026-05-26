@@ -12,13 +12,19 @@
     dest: "/tmp/awx-operator-{{ awx_operator_version }}.yaml"
     mode: "0644"
 
-- name: Apply AWX Operator manifest
+- name: Apply AWX Operator
   command: >
-    k3s kubectl apply -f /tmp/awx-operator-{{ awx_operator_version }}.yaml
-    -n {{ awx_namespace }}
+    k3s kubectl apply -k github.com/ansible/awx-operator/config/default?ref={{ awx_operator_version }}
   register: operator_apply
-  changed_when: "'created' in operator_apply.stdout or 'configured' in operator_apply.stdout"
+  changed_when: >
+    'created' in operator_apply.stdout or
+    'configured' in operator_apply.stdout
 
+- name: Patch kube-rbac-proxy image
+  shell: |
+    k3s kubectl -n {{ awx_namespace }} set image deployment/awx-operator-controller-manager \
+    kube-rbac-proxy=quay.io/brancz/kube-rbac-proxy:v0.15.0
+    
 - name: Wait for AWX Operator deployment to be ready
   command: >
     k3s kubectl rollout status deployment/awx-operator-controller-manager
