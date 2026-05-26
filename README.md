@@ -115,7 +115,7 @@ Use this when you manage multiple servers from a separate Ansible control node.
 
 ```bash
 yum install git ansible python3-pip3
-pip3 install ansible kubernetes pyyaml --break-system-packages
+pip3 install ansible kubernetes pyyaml
 ```
 **Step 2: Clone the repo on your control machine**
 
