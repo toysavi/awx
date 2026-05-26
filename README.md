@@ -121,8 +121,7 @@ pip3 install ansible kubernetes pyyaml
 
 ```bash
 git clone <your-repo-url> /opt/iac
-cd /opt/iac
-```
+cd /opt/awx
 
 **Step 3: Set remote hosts in inventory**
 
