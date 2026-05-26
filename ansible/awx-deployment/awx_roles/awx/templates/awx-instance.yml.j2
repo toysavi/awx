@@ -46,5 +46,6 @@ spec:
   image_version: "{{ awx_version }}"
   image_pull_policy: IfNotPresent
 
-  service_type: ClusterIP
+  service_type: NodePort
+  #service_type: ClusterIP
   ingress_type: none
