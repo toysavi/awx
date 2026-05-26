@@ -1,0 +1,8 @@
+---
+# Role: apache
+# Install and configure Apache HTTPD
+# TODO: Add your tasks here
+
+- name: Placeholder — apache
+  debug:
+    msg: "apache role — add tasks in tasks/main.yml"

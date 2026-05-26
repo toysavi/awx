@@ -1,0 +1,4 @@
+---
+awx_operator_version: "2.13.1"
+awx_namespace: awx
+awx_operator_manifest_url: "https://raw.githubusercontent.com/ansible/awx-operator/{{ awx_operator_version }}/deploy/awx-operator.yaml"

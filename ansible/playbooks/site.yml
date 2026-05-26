@@ -1,9 +1,0 @@
-- hosts: all
-  become: true
-  roles:
-    - common
-    - k3s
-    - kubectl
-    - awx_operator
-    - awx
-    - ingress

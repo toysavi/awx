@@ -1,0 +1,24 @@
+---
+- name: Apply cert-manager CRDs and operator
+  command: >
+    k3s kubectl apply -f
+    https://github.com/cert-manager/cert-manager/releases/download/{{ certmanager_version }}/cert-manager.yaml
+  register: cm_apply
+  changed_when: "'created' in cm_apply.stdout"
+
+- name: Wait for cert-manager to be ready
+  command: >
+    k3s kubectl rollout status deployment/cert-manager
+    -n {{ certmanager_namespace }} --timeout=300s
+  changed_when: false
+
+- name: Template ClusterIssuer
+  template:
+    src: clusterissuer.yml.j2
+    dest: /tmp/clusterissuer.yml
+    mode: "0644"
+
+- name: Apply ClusterIssuer
+  command: k3s kubectl apply -f /tmp/clusterissuer.yml
+  register: issuer_apply
+  changed_when: "'created' in issuer_apply.stdout or 'configured' in issuer_apply.stdout"

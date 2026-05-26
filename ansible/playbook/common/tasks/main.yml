@@ -1,0 +1,8 @@
+---
+# Role: common
+# Common OS tasks shared across roles
+# TODO: Add your tasks here
+
+- name: Placeholder — common
+  debug:
+    msg: "common role — add tasks in tasks/main.yml"

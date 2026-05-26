@@ -1,0 +1,19 @@
+---
+common_packages:
+  - curl
+  - wget
+  - git
+  - net-tools
+  - htop
+  - vim
+  - unzip
+  - python3-pip
+  - apt-transport-https
+  - ca-certificates
+  - gnupg
+  - lsb-release
+sysctl_params:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1
+  vm.swappiness: 0

@@ -1,0 +1,8 @@
+---
+# Role: os_hardening
+# OS hardening (CIS benchmark)
+# TODO: Add your tasks here
+
+- name: Placeholder — os_hardening
+  debug:
+    msg: "os_hardening role — add tasks in tasks/main.yml"

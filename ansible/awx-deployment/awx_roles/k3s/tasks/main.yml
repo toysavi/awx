@@ -1,0 +1,105 @@
+---
+- name: Check if k3s is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Download k3s install script
+  get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s_install.sh
+    mode: "0755"
+  when: not k3s_binary.stat.exists
+
+- name: Install k3s on master (primary)
+  shell: |
+    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    INSTALL_K3S_EXEC="server \
+      --cluster-init \
+      --disable servicelb \
+      --disable traefik \
+      --write-kubeconfig-mode 644 \
+      --node-ip {{ ip }} \
+      --cluster-cidr {{ k3s_cluster_cidr }} \
+      --service-cidr {{ k3s_service_cidr }} \
+      --flannel-backend {{ k3s_flannel_backend }}" \
+    /tmp/k3s_install.sh
+  args:
+    creates: /usr/local/bin/k3s
+  when:
+    - inventory_hostname == groups['k3s_masters'][0]
+    - k3s_role == 'server'
+  notify: restart k3s
+
+- name: Wait for k3s node token
+  wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    timeout: 60
+  when: inventory_hostname == groups['k3s_masters'][0]
+
+- name: Read node token from primary master
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+  when: inventory_hostname == groups['k3s_masters'][0]
+
+- name: Set token fact
+  set_fact:
+    k3s_node_token: "{{ k3s_token_raw['content'] | b64decode | trim }}"
+  when: inventory_hostname == groups['k3s_masters'][0]
+
+- name: Propagate token to all hosts
+  set_fact:
+    k3s_node_token: "{{ hostvars[groups['k3s_masters'][0]]['k3s_node_token'] }}"
+  when: inventory_hostname != groups['k3s_masters'][0]
+
+- name: Install k3s on additional masters
+  shell: |
+    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    K3S_TOKEN="{{ k3s_node_token }}" \
+    INSTALL_K3S_EXEC="server \
+      --server https://{{ hostvars[groups['k3s_masters'][0]]['ip'] }}:6443 \
+      --disable servicelb \
+      --node-ip {{ ip }}" \
+    /tmp/k3s_install.sh
+  args:
+    creates: /usr/local/bin/k3s
+  when:
+    - k3s_role == 'server'
+    - inventory_hostname != groups['k3s_masters'][0]
+  notify: restart k3s
+
+- name: Install k3s on workers
+  shell: |
+    INSTALL_K3S_VERSION="{{ k3s_version }}" \
+    K3S_TOKEN="{{ k3s_node_token }}" \
+    K3S_URL="https://{{ hostvars[groups['k3s_masters'][0]]['ip'] }}:6443" \
+    /tmp/k3s_install.sh agent \
+      --node-ip {{ ip }}
+  args:
+    creates: /usr/local/bin/k3s
+  when: k3s_role == 'agent'
+  notify: restart k3s-agent
+
+- name: Enable and start k3s service
+  systemd:
+    name: k3s
+    enabled: true
+    state: started
+  when: k3s_role == 'server'
+
+- name: Enable and start k3s-agent service
+  systemd:
+    name: k3s-agent
+    enabled: true
+    state: started
+  when: k3s_role == 'agent'
+
+- name: Wait for node to be Ready
+  command: k3s kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[-1].type}'
+  register: node_status
+  until: node_status.stdout == "Ready"
+  retries: 30
+  delay: 10
+  when: k3s_role == 'server'
+  changed_when: false

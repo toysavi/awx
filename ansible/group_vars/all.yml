@@ -1,6 +1,42 @@
-fqdn: "awx.example.com"
-k3s_version: "v1.29.3+k3s1"
-storage_class: "local-path"
-postgres_storage_size: "20Gi"
-awx_admin_user: "admin"
-awx_admin_password: "SuperSecretPassword123"
+---
+# ── Global settings ───────────────────────────────────────────────
+environment_name: production
+timezone: UTC
+domain_suffix: example.com
+
+# ── k3s ───────────────────────────────────────────────────────────
+k3s_version: v1.30.0
+k3s_cluster_cidr: 10.42.0.0/16
+k3s_service_cidr: 10.43.0.0/16
+k3s_flannel_backend: vxlan
+k3s_disable_servicelb: true
+k3s_disable_local_storage: false
+
+# ── AWX ───────────────────────────────────────────────────────────
+awx_namespace: awx
+awx_version: "24.1.0"
+awx_operator_version: "2.13.1"
+awx_admin_user: admin
+awx_admin_password: "ChangeMe123!"   # Override via vault or -e
+awx_admin_email: admin@example.com
+awx_fqdn: "awx.{{ domain_suffix }}"
+
+# ── Storage ───────────────────────────────────────────────────────
+storage_class: local-path
+awx_postgres_storage_class: "{{ storage_class }}"
+awx_projects_storage_class: "{{ storage_class }}"
+awx_postgres_storage_size: 20Gi
+awx_projects_storage_size: 50Gi
+
+# ── Resources ─────────────────────────────────────────────────────
+awx_web_memory_limit: 1Gi
+awx_web_memory_request: 512Mi
+awx_task_memory_limit: 2Gi
+awx_task_memory_request: 1Gi
+awx_postgres_memory_limit: 1Gi
+
+# ── Ingress / TLS ─────────────────────────────────────────────────
+ingress_class: traefik
+use_tls: false
+certmanager_enabled: false
+certmanager_email: "{{ awx_admin_email }}"

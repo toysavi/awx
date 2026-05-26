@@ -1,0 +1,8 @@
+---
+# Role: add_hosts
+# Add hosts to in-memory inventory dynamically
+# TODO: Add your tasks here
+
+- name: Placeholder — add_hosts
+  debug:
+    msg: "add_hosts role — add tasks in tasks/main.yml"

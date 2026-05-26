@@ -1,0 +1,8 @@
+---
+# Role: docker
+# Install Docker CE and configure daemon
+# TODO: Add your tasks here
+
+- name: Placeholder — docker
+  debug:
+    msg: "docker role — add tasks in tasks/main.yml"

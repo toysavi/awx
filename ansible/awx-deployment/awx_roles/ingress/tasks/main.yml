@@ -1,0 +1,33 @@
+---
+- name: Create manifest directory
+  file:
+    path: "{{ awx_manifest_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Template Ingress manifest
+  template:
+    src: ingress.yml.j2
+    dest: "{{ awx_manifest_dir }}/ingress.yml"
+    mode: "0644"
+
+- name: Apply Ingress manifest
+  command: k3s kubectl apply -f {{ awx_manifest_dir }}/ingress.yml
+  register: ingress_apply
+  changed_when: "'created' in ingress_apply.stdout or 'configured' in ingress_apply.stdout"
+
+- name: Wait for Ingress to get an address
+  command: >
+    k3s kubectl get ingress awx-ingress
+    -n {{ awx_namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: ingress_ip
+  until: ingress_ip.stdout != ""
+  retries: 20
+  delay: 10
+  changed_when: false
+
+- name: Print Ingress info
+  debug:
+    msg:
+      - "Ingress IP: {{ ingress_ip.stdout }}"
+      - "AWX URL: http{{ 's' if use_tls else '' }}://{{ awx_fqdn }}"

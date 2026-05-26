@@ -1,0 +1,8 @@
+---
+# Role: aws
+# AWS resource provisioning helpers
+# TODO: Add your tasks here
+
+- name: Placeholder — aws
+  debug:
+    msg: "aws role — add tasks in tasks/main.yml"

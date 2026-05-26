@@ -1,0 +1,8 @@
+---
+# Role: git
+# Install Git and configure global settings
+# TODO: Add your tasks here
+
+- name: Placeholder — git
+  debug:
+    msg: "git role — add tasks in tasks/main.yml"

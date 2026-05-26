@@ -1,0 +1,8 @@
+---
+# Role: deploy_vm
+# Deploy virtual machines (VMware/cloud)
+# TODO: Add your tasks here
+
+- name: Placeholder — deploy_vm
+  debug:
+    msg: "deploy_vm role — add tasks in tasks/main.yml"

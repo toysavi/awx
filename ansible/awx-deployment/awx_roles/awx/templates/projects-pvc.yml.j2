@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: awx-projects-pvc
+  namespace: {{ awx_namespace }}
+  labels:
+    app: awx
+    component: projects
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ awx_projects_storage_class }}
+  resources:
+    requests:
+      storage: {{ awx_projects_storage_size }}

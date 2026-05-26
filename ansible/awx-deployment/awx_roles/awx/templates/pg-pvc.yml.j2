@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: awx-postgres-pvc
+  namespace: {{ awx_namespace }}
+  labels:
+    app: awx
+    component: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ awx_postgres_storage_class }}
+  resources:
+    requests:
+      storage: {{ awx_postgres_storage_size }}

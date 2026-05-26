@@ -1,0 +1,7 @@
+---
+k3s_version: v1.30.0
+k3s_install_dir: /usr/local/bin
+k3s_config_dir: /etc/rancher/k3s
+k3s_data_dir: /var/lib/rancher/k3s
+k3s_server_extra_args: ""
+k3s_agent_extra_args: ""

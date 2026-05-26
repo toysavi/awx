@@ -1,0 +1,47 @@
+---
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx
+  namespace: {{ awx_namespace }}
+spec:
+  admin_user: {{ awx_admin_user }}
+  admin_email: {{ awx_admin_email | default('admin@example.com') }}
+  admin_password_secret: awx-admin-password
+
+  hostname: {{ awx_fqdn }}
+
+  # Resource limits
+  web_resource_requirements:
+    requests:
+      memory: {{ awx_web_memory_request }}
+    limits:
+      memory: {{ awx_web_memory_limit }}
+
+  task_resource_requirements:
+    requests:
+      memory: {{ awx_task_memory_request }}
+    limits:
+      memory: {{ awx_task_memory_limit }}
+
+  postgres_resource_requirements:
+    limits:
+      memory: {{ awx_postgres_memory_limit }}
+
+  # Storage
+  postgres_storage_requirements:
+    requests:
+      storage: {{ awx_postgres_storage_size }}
+  postgres_storage_class: {{ awx_postgres_storage_class }}
+
+  projects_persistence: true
+  projects_existing_claim: awx-projects-pvc
+
+  # Image
+  image: quay.io/ansible/awx
+  image_version: "{{ awx_version }}"
+
+  # Service type (ClusterIP — exposed via Ingress)
+  service_type: ClusterIP
+
+  ingress_type: none

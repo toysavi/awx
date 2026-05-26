@@ -1,0 +1,58 @@
+---
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Set timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Install prerequisite packages
+  apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+  retries: 3
+  delay: 5
+
+- name: Apply kernel parameters
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop: "{{ sysctl_params | dict2items }}"
+
+- name: Load br_netfilter kernel module
+  modprobe:
+    name: br_netfilter
+    state: present
+
+- name: Persist br_netfilter module
+  copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: "br_netfilter\n"
+    mode: "0644"
+
+- name: Disable swap
+  command: swapoff -a
+  changed_when: false
+
+- name: Remove swap from fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+    replace: '# \1'
+
+- name: Open firewall ports for k3s
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "6443"
+    - "10250"
+    - "2379"
+    - "2380"
+  ignore_errors: true

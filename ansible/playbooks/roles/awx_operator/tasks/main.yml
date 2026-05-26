@@ -1,3 +1,0 @@
-- name: Install AWX Operator
-  shell: |
-    kubectl apply -f https://github.com/ansible/awx-operator/releases/latest/download/awx-operator.yaml

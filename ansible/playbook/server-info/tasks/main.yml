@@ -1,0 +1,8 @@
+---
+# Role: server-info
+# Gather and report server facts
+# TODO: Add your tasks here
+
+- name: Placeholder — server-info
+  debug:
+    msg: "server-info role — add tasks in tasks/main.yml"

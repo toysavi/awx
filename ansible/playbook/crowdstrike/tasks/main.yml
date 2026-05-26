@@ -1,0 +1,8 @@
+---
+# Role: crowdstrike
+# Install and register CrowdStrike Falcon sensor
+# TODO: Add your tasks here
+
+- name: Placeholder — crowdstrike
+  debug:
+    msg: "crowdstrike role — add tasks in tasks/main.yml"

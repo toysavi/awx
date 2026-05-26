@@ -1,0 +1,28 @@
+---
+- name: Create AWX namespace
+  k8s:
+    name: "{{ awx_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+
+- name: Download AWX Operator manifest
+  get_url:
+    url: "{{ awx_operator_manifest_url }}"
+    dest: "/tmp/awx-operator-{{ awx_operator_version }}.yaml"
+    mode: "0644"
+
+- name: Apply AWX Operator manifest
+  command: >
+    k3s kubectl apply -f /tmp/awx-operator-{{ awx_operator_version }}.yaml
+    -n {{ awx_namespace }}
+  register: operator_apply
+  changed_when: "'created' in operator_apply.stdout or 'configured' in operator_apply.stdout"
+
+- name: Wait for AWX Operator deployment to be ready
+  command: >
+    k3s kubectl rollout status deployment/awx-operator-controller-manager
+    -n {{ awx_namespace }} --timeout=300s
+  changed_when: false
+  retries: 3
+  delay: 10

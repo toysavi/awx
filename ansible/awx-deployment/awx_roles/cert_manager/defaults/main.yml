@@ -1,0 +1,6 @@
+---
+certmanager_version: v1.14.5
+certmanager_namespace: cert-manager
+certmanager_email: admin@example.com
+awx_fqdn: awx.example.com
+awx_namespace: awx
