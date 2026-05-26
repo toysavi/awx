@@ -1,7 +1,7 @@
 ---
 # ── Global settings ───────────────────────────────────────────────
 environment_name: production
-timezone: UTC
+timezone: Asia/Phnom_Penh
 domain_suffix: example.com
 
 # ── Proxy (set if behind corporate proxy, leave empty otherwise) ──

@@ -2,7 +2,7 @@
 # AWX deployment overrides
 # These extend/override ansible/group_vars/all.yml
 
-awx_fqdn: awx.example.com          # Change to your domain
+awx_fqdn: "awx.{{ domain_suffix }}"         # Change to your domain
 awx_admin_password: "ChangeMe123!" # CHANGE THIS
 awx_admin_email: admin@example.com
 
@@ -15,5 +15,5 @@ awx_postgres_storage_size: 20Gi
 awx_projects_storage_size: 8Gi
 
 # Timezone
-timezone: UTC
+timezone: Asia/Phnom_Penh
 domain_suffix: example.com

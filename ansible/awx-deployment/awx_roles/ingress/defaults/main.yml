@@ -1,6 +1,6 @@
 ---
 awx_namespace: awx
-awx_fqdn: awx.example.com
+awx_fqdn: "awx.{{ domain_suffix }}"
 ingress_class: traefik
 use_tls: false
 awx_service_name: awx-service

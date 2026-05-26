@@ -1,7 +1,7 @@
 ---
 awx_namespace: awx
 awx_version: "24.6.1"          # Must match AWX Operator 2.19.1 bundled version
-awx_fqdn: awx.example.com
+awx_fqdn: "awx.{{ domain_suffix }}"
 awx_admin_user: admin
 awx_admin_password: "ChangeMe123!"
 awx_admin_email: admin@example.com
