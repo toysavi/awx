@@ -5,34 +5,18 @@
     state: directory
     mode: "0755"
 
-- name: Template PostgreSQL PVC
-  template:
-    src: pg-pvc.yml.j2
-    dest: "{{ awx_manifest_dir }}/pg-pvc.yml"
-    mode: "0644"
-
-- name: Template Projects PVC
-  template:
-    src: projects-pvc.yml.j2
-    dest: "{{ awx_manifest_dir }}/projects-pvc.yml"
-    mode: "0644"
-
-- name: Template AWX instance CRD
+# --------------------------------------------------
+# TEMPLATE ONLY AWX CR (NO PVC HERE)
+# --------------------------------------------------
+- name: Template AWX instance CR
   template:
     src: awx-instance.yml.j2
     dest: "{{ awx_manifest_dir }}/awx-instance.yml"
     mode: "0644"
 
-- name: Apply PostgreSQL PVC
-  command: k3s kubectl apply -f {{ awx_manifest_dir }}/pg-pvc.yml
-  register: pg_pvc
-  changed_when: "'created' in pg_pvc.stdout or 'configured' in pg_pvc.stdout"
-
-- name: Apply Projects PVC
-  command: k3s kubectl apply -f {{ awx_manifest_dir }}/projects-pvc.yml
-  register: proj_pvc
-  changed_when: "'created' in proj_pvc.stdout or 'configured' in proj_pvc.stdout"
-
+# --------------------------------------------------
+# CREATE ADMIN SECRET
+# --------------------------------------------------
 - name: Create AWX admin secret
   k8s:
     state: present
@@ -45,40 +29,69 @@
       stringData:
         password: "{{ awx_admin_password }}"
 
-- name: Apply AWX instance CRD
-  command: k3s kubectl apply -f {{ awx_manifest_dir }}/awx-instance.yml
+# --------------------------------------------------
+# APPLY AWX CR (OPERATOR TRIGGERS EVERYTHING)
+# --------------------------------------------------
+- name: Apply AWX instance CR
+  command: >
+    k3s kubectl apply -f {{ awx_manifest_dir }}/awx-instance.yml
   register: awx_apply
-  changed_when: "'created' in awx_apply.stdout or 'configured' in awx_apply.stdout"
+  changed_when: awx_apply.rc == 0
 
-- name: Get PostgreSQL StatefulSet name
+# --------------------------------------------------
+# WAIT FOR OPERATOR TO CREATE WEB DEPLOYMENT
+# --------------------------------------------------
+- name: Wait for AWX web deployment to appear
   shell: |
-    k3s kubectl get statefulset -n {{ awx_namespace }} \
-    -o jsonpath='{.items[0].metadata.name}'
-  register: postgres_sts
+    k3s kubectl get deployment -n {{ awx_namespace }} \
+    -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep awx-web
+  register: awx_web
+  retries: 30
+  delay: 10
+  until: awx_web.stdout != ""
   changed_when: false
 
-- name: Wait for PostgreSQL StatefulSet
+- name: Wait for AWX web rollout
   command: >
-    k3s kubectl rollout status
-    statefulset/{{ postgres_sts.stdout }}
+    k3s kubectl rollout status deployment/{{ awx_web.stdout }}
     -n {{ awx_namespace }}
     --timeout=600s
-
-- name: Wait for AWX web deployment
-  command: >
-    k3s kubectl rollout status deployment/awx
-    -n {{ awx_namespace }} --timeout=600s
   changed_when: false
-  retries: 5
-  delay: 30
 
+# --------------------------------------------------
+# WAIT FOR OPERATOR TO CREATE TASK DEPLOYMENT
+# --------------------------------------------------
+- name: Wait for AWX task deployment to appear
+  shell: |
+    k3s kubectl get deployment -n {{ awx_namespace }} \
+    -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep awx-task
+  register: awx_task
+  retries: 30
+  delay: 10
+  until: awx_task.stdout != ""
+  changed_when: false
+
+- name: Wait for AWX task rollout
+  command: >
+    k3s kubectl rollout status deployment/{{ awx_task.stdout }}
+    -n {{ awx_namespace }}
+    --timeout=600s
+  changed_when: false
+
+# --------------------------------------------------
+# GET ADMIN PASSWORD
+# --------------------------------------------------
 - name: Retrieve admin password secret
   command: >
     k3s kubectl get secret awx-admin-password
-    -n {{ awx_namespace }} -o jsonpath='{.data.password}'
+    -n {{ awx_namespace }}
+    -o jsonpath='{.data.password}'
   register: admin_pw_b64
   changed_when: false
 
+# --------------------------------------------------
+# OUTPUT INFO
+# --------------------------------------------------
 - name: Print AWX access info
   debug:
     msg:

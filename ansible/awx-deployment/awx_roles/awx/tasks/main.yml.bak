@@ -1,0 +1,87 @@
+---
+- name: Create manifest working directory
+  file:
+    path: "{{ awx_manifest_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Template PostgreSQL PVC
+  template:
+    src: pg-pvc.yml.j2
+    dest: "{{ awx_manifest_dir }}/pg-pvc.yml"
+    mode: "0644"
+
+- name: Template Projects PVC
+  template:
+    src: projects-pvc.yml.j2
+    dest: "{{ awx_manifest_dir }}/projects-pvc.yml"
+    mode: "0644"
+
+- name: Template AWX instance CRD
+  template:
+    src: awx-instance.yml.j2
+    dest: "{{ awx_manifest_dir }}/awx-instance.yml"
+    mode: "0644"
+
+- name: Apply PostgreSQL PVC
+  command: k3s kubectl apply -f {{ awx_manifest_dir }}/pg-pvc.yml
+  register: pg_pvc
+  changed_when: "'created' in pg_pvc.stdout or 'configured' in pg_pvc.stdout"
+
+- name: Apply Projects PVC
+  command: k3s kubectl apply -f {{ awx_manifest_dir }}/projects-pvc.yml
+  register: proj_pvc
+  changed_when: "'created' in proj_pvc.stdout or 'configured' in proj_pvc.stdout"
+
+- name: Create AWX admin secret
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: awx-admin-password
+        namespace: "{{ awx_namespace }}"
+      stringData:
+        password: "{{ awx_admin_password }}"
+
+- name: Apply AWX instance CRD
+  command: k3s kubectl apply -f {{ awx_manifest_dir }}/awx-instance.yml
+  register: awx_apply
+  changed_when: "'created' in awx_apply.stdout or 'configured' in awx_apply.stdout"
+
+- name: Get PostgreSQL StatefulSet name
+  shell: |
+    k3s kubectl get statefulset -n {{ awx_namespace }} \
+    -o jsonpath='{.items[0].metadata.name}'
+  register: postgres_sts
+  changed_when: false
+
+- name: Wait for PostgreSQL StatefulSet
+  command: >
+    k3s kubectl rollout status
+    statefulset/{{ postgres_sts.stdout }}
+    -n {{ awx_namespace }}
+    --timeout=600s
+
+- name: Wait for AWX web deployment
+  command: >
+    k3s kubectl rollout status deployment/awx
+    -n {{ awx_namespace }} --timeout=600s
+  changed_when: false
+  retries: 5
+  delay: 30
+
+- name: Retrieve admin password secret
+  command: >
+    k3s kubectl get secret awx-admin-password
+    -n {{ awx_namespace }} -o jsonpath='{.data.password}'
+  register: admin_pw_b64
+  changed_when: false
+
+- name: Print AWX access info
+  debug:
+    msg:
+      - "AWX URL: http://{{ awx_fqdn }}"
+      - "Admin user: {{ awx_admin_user }}"
+      - "Admin password: {{ admin_pw_b64.stdout | b64decode }}"
