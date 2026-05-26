@@ -109,17 +109,19 @@ ansible-playbook -i ansible/inventory/hosts.yml \
 
 Use this when you manage multiple servers from a separate Ansible control node.
 
-**Step 1: Clone the repo on your control machine**
+
+
+**Step 1: Install Ansible**
+
+```bash
+yum install git ansible python3-pip3
+pip3 install ansible kubernetes pyyaml --break-system-packages
+```
+**Step 2: Clone the repo on your control machine**
 
 ```bash
 git clone <your-repo-url> /opt/iac
 cd /opt/iac
-```
-
-**Step 2: Install Ansible**
-
-```bash
-pip3 install ansible kubernetes pyyaml --break-system-packages
 ```
 
 **Step 3: Set remote hosts in inventory**
