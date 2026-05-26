@@ -38,9 +38,9 @@ awx_postgres_storage_size: 20Gi
 awx_projects_storage_size: 8Gi
 
 # ── Resources ─────────────────────────────────────────────────────
-awx_web_memory_limit: 1Gi
+awx_web_memory_limit: 2Gi
 awx_web_memory_request: 512Mi
-awx_task_memory_limit: 2Gi
+awx_task_memory_limit: 3Gi
 awx_task_memory_request: 1Gi
 awx_postgres_memory_limit: 1Gi
 
