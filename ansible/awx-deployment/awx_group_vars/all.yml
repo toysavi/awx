@@ -1,6 +1,19 @@
 ---
-# AWX deployment overrides — these extend/override global group_vars/all.yml
-awx_fqdn: awx.example.com
-awx_admin_password: "ChangeMe123!"
+# AWX deployment overrides
+# These extend/override ansible/group_vars/all.yml
+
+awx_fqdn: awx.example.com          # Change to your domain
+awx_admin_password: "ChangeMe123!" # CHANGE THIS
+awx_admin_email: admin@example.com
+
+# Operator + AWX versions (keep in sync — operator 2.19.1 ships awx 24.6.1)
+awx_operator_version: "2.19.1"
+awx_version: "24.6.1"
+
+# Storage
 awx_postgres_storage_size: 20Gi
-awx_projects_storage_size: 50Gi
+awx_projects_storage_size: 8Gi
+
+# Timezone
+timezone: UTC
+domain_suffix: example.com

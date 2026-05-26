@@ -1,9 +1,9 @@
+---
 apiVersion: awx.ansible.com/v1beta1
 kind: AWX
 metadata:
   name: awx
   namespace: {{ awx_namespace }}
-
 spec:
   admin_user: {{ awx_admin_user }}
   admin_email: {{ awx_admin_email | default('admin@example.com') }}
@@ -11,9 +11,8 @@ spec:
 
   hostname: {{ awx_fqdn }}
 
-  # --------------------------------------------------
-  # RESOURCE LIMITS
-  # --------------------------------------------------
+  replicas: 1
+
   web_resource_requirements:
     requests:
       memory: {{ awx_web_memory_request }}
@@ -27,36 +26,25 @@ spec:
       memory: {{ awx_task_memory_limit }}
 
   postgres_resource_requirements:
+    requests:
+      memory: 512Mi
     limits:
       memory: {{ awx_postgres_memory_limit }}
 
-  # --------------------------------------------------
-  # POSTGRES STORAGE
-  # --------------------------------------------------
   postgres_storage_requirements:
     requests:
       storage: {{ awx_postgres_storage_size }}
-
   postgres_storage_class: {{ awx_postgres_storage_class }}
 
-  # --------------------------------------------------
-  # PROJECTS STORAGE (FIXED)
-  # --------------------------------------------------
   projects_persistence: true
+  projects_storage_class: {{ awx_projects_storage_class }}
+  projects_storage_size: {{ awx_projects_storage_size }}
+  projects_storage_access_mode: ReadWriteOnce
 
-  projects_storage_access_mode: ReadWriteOnce   # ✅ REQUIRED FIX
-
-  projects_storage_size: 8Gi
-
-  # --------------------------------------------------
-  # IMAGE
-  # --------------------------------------------------
+  # Must match the operator version's bundled AWX image
   image: quay.io/ansible/awx
   image_version: "{{ awx_version }}"
+  image_pull_policy: IfNotPresent
 
-  # --------------------------------------------------
-  # SERVICE
-  # --------------------------------------------------
   service_type: ClusterIP
-
   ingress_type: none

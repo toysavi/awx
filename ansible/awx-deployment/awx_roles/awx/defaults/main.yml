@@ -1,13 +1,14 @@
 ---
 awx_namespace: awx
-awx_version: "24.1.0"
+awx_version: "24.6.1"          # Must match AWX Operator 2.19.1 bundled version
 awx_fqdn: awx.example.com
 awx_admin_user: admin
 awx_admin_password: "ChangeMe123!"
+awx_admin_email: admin@example.com
 awx_postgres_storage_class: local-path
 awx_postgres_storage_size: 20Gi
 awx_projects_storage_class: local-path
-awx_projects_storage_size: 50Gi
+awx_projects_storage_size: 8Gi
 awx_web_memory_limit: 1Gi
 awx_web_memory_request: 512Mi
 awx_task_memory_limit: 2Gi

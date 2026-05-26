@@ -5,96 +5,86 @@
     state: directory
     mode: "0755"
 
-# --------------------------------------------------
-# TEMPLATE ONLY AWX CR (NO PVC HERE)
-# --------------------------------------------------
 - name: Template AWX instance CR
   template:
     src: awx-instance.yml.j2
     dest: "{{ awx_manifest_dir }}/awx-instance.yml"
     mode: "0644"
 
-# --------------------------------------------------
-# CREATE ADMIN SECRET
-# --------------------------------------------------
 - name: Create AWX admin secret
-  k8s:
-    state: present
-    definition:
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: awx-admin-password
-        namespace: "{{ awx_namespace }}"
-      stringData:
-        password: "{{ awx_admin_password }}"
+  command: >
+    k3s kubectl create secret generic awx-admin-password
+    --from-literal=password={{ awx_admin_password }}
+    -n {{ awx_namespace }}
+    --dry-run=client -o yaml
+  register: secret_yaml
+  changed_when: false
 
-# --------------------------------------------------
-# APPLY AWX CR (OPERATOR TRIGGERS EVERYTHING)
-# --------------------------------------------------
+- name: Apply AWX admin secret
+  shell: echo '{{ secret_yaml.stdout }}' | k3s kubectl apply -f -
+  changed_when: true
+
 - name: Apply AWX instance CR
+  command: k3s kubectl apply -f {{ awx_manifest_dir }}/awx-instance.yml
+  register: awx_cr_apply
+  changed_when: "'created' in awx_cr_apply.stdout or 'configured' in awx_cr_apply.stdout"
+
+- name: Wait for operator to start processing (initial delay)
+  pause:
+    seconds: 30
+
+- name: Wait for AWX web deployment to be created by operator
+  command: k3s kubectl get deployment awx -n {{ awx_namespace }}
+  register: awx_deploy_check
+  until: awx_deploy_check.rc == 0
+  retries: 60
+  delay: 15
+  changed_when: false
+  failed_when: false
+
+- name: Check if deployment was created
+  command: k3s kubectl get deployment awx -n {{ awx_namespace }} --no-headers
+  register: deploy_exists
+  changed_when: false
+  ignore_errors: true
+
+- name: Show AWX CR status if deployment not found
+  command: k3s kubectl get awx awx -n {{ awx_namespace }} -o jsonpath='{.status}'
+  register: awx_status
+  changed_when: false
+  when: deploy_exists.rc != 0
+
+- name: Print AWX CR status for debugging
+  debug:
+    msg: "{{ awx_status.stdout }}"
+  when: deploy_exists.rc != 0
+
+- name: Fail with helpful message if deployment never appeared
+  fail:
+    msg: |
+      AWX web deployment was not created after 15 minutes.
+      Check operator logs: k3s kubectl logs -n awx deployment/awx-operator-controller-manager -c awx-manager --tail=50
+      Check CR status:     k3s kubectl describe awx awx -n awx
+  when: deploy_exists.rc != 0
+
+- name: Wait for AWX deployment to be ready
   command: >
-    k3s kubectl apply -f {{ awx_manifest_dir }}/awx-instance.yml
-  register: awx_apply
-  changed_when: awx_apply.rc == 0
-
-# --------------------------------------------------
-# WAIT FOR OPERATOR TO CREATE WEB DEPLOYMENT
-# --------------------------------------------------
-- name: Wait for AWX web deployment to appear
-  shell: |
-    k3s kubectl get deployment -n {{ awx_namespace }} \
-    -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep awx-web
-  register: awx_web
-  retries: 30
-  delay: 10
-  until: awx_web.stdout != ""
+    k3s kubectl rollout status deployment/awx
+    -n {{ awx_namespace }} --timeout=600s
   changed_when: false
+  retries: 3
+  delay: 30
 
-- name: Wait for AWX web rollout
-  command: >
-    k3s kubectl rollout status deployment/{{ awx_web.stdout }}
-    -n {{ awx_namespace }}
-    --timeout=600s
-  changed_when: false
-
-# --------------------------------------------------
-# WAIT FOR OPERATOR TO CREATE TASK DEPLOYMENT
-# --------------------------------------------------
-- name: Wait for AWX task deployment to appear
-  shell: |
-    k3s kubectl get deployment -n {{ awx_namespace }} \
-    -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep awx-task
-  register: awx_task
-  retries: 30
-  delay: 10
-  until: awx_task.stdout != ""
-  changed_when: false
-
-- name: Wait for AWX task rollout
-  command: >
-    k3s kubectl rollout status deployment/{{ awx_task.stdout }}
-    -n {{ awx_namespace }}
-    --timeout=600s
-  changed_when: false
-
-# --------------------------------------------------
-# GET ADMIN PASSWORD
-# --------------------------------------------------
-- name: Retrieve admin password secret
+- name: Retrieve admin password
   command: >
     k3s kubectl get secret awx-admin-password
-    -n {{ awx_namespace }}
-    -o jsonpath='{.data.password}'
+    -n {{ awx_namespace }} -o jsonpath='{.data.password}'
   register: admin_pw_b64
   changed_when: false
 
-# --------------------------------------------------
-# OUTPUT INFO
-# --------------------------------------------------
 - name: Print AWX access info
   debug:
     msg:
-      - "AWX URL: http://{{ awx_fqdn }}"
-      - "Admin user: {{ awx_admin_user }}"
+      - "AWX URL      : http://{{ awx_fqdn }}"
+      - "Admin user   : {{ awx_admin_user }}"
       - "Admin password: {{ admin_pw_b64.stdout | b64decode }}"

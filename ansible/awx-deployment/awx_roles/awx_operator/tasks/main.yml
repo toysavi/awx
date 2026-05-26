@@ -1,34 +1,73 @@
 ---
 - name: Create AWX namespace
-  k8s:
-    name: "{{ awx_namespace }}"
-    api_version: v1
-    kind: Namespace
-    state: present
+  command: >
+    k3s kubectl create namespace {{ awx_namespace }} --dry-run=client -o yaml
+  register: ns_yaml
+  changed_when: false
 
-- name: Download AWX Operator manifest
-  get_url:
-    url: "{{ awx_operator_manifest_url }}"
-    dest: "/tmp/awx-operator-{{ awx_operator_version }}.yaml"
+- name: Apply AWX namespace
+  shell: echo '{{ ns_yaml.stdout }}' | k3s kubectl apply -f -
+  changed_when: true
+
+- name: Install kustomize binary
+  shell: |
+    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+    mv kustomize /usr/local/bin/kustomize
+    chmod +x /usr/local/bin/kustomize
+  args:
+    creates: /usr/local/bin/kustomize
+  environment:
+    https_proxy: "{{ https_proxy | default('') }}"
+    http_proxy: "{{ http_proxy | default('') }}"
+
+- name: Create kustomize working directory
+  file:
+    path: /tmp/awx-operator-install
+    state: directory
+    mode: "0755"
+
+- name: Template kustomization.yaml with pinned versions
+  copy:
+    dest: /tmp/awx-operator-install/kustomization.yaml
+    content: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+        - github.com/ansible/awx-operator/config/default?ref={{ awx_operator_version }}
+      images:
+        - name: quay.io/ansible/awx-operator
+          newTag: "{{ awx_operator_version }}"
+        # gcr.io/kubebuilder was shut down — remap to quay.io mirror
+        - name: gcr.io/kubebuilder/kube-rbac-proxy
+          newName: quay.io/brancz/kube-rbac-proxy
+          newTag: v0.15.0
+      namespace: {{ awx_namespace }}
     mode: "0644"
 
-- name: Apply AWX Operator
-  command: >
-    k3s kubectl apply -k github.com/ansible/awx-operator/config/default?ref={{ awx_operator_version }}
-  register: operator_apply
-  changed_when: >
-    'created' in operator_apply.stdout or
-    'configured' in operator_apply.stdout
-
-- name: Patch kube-rbac-proxy image
+- name: Build and apply AWX Operator via kustomize
   shell: |
-    k3s kubectl -n {{ awx_namespace }} set image deployment/awx-operator-controller-manager \
-    kube-rbac-proxy=quay.io/brancz/kube-rbac-proxy:v0.15.0
-    
-- name: Wait for AWX Operator deployment to be ready
+    cd /tmp/awx-operator-install
+    kustomize build . | k3s kubectl apply -f -
+  register: operator_apply
+  changed_when: "'created' in operator_apply.stdout"
+  environment:
+    https_proxy: "{{ https_proxy | default('') }}"
+    http_proxy: "{{ http_proxy | default('') }}"
+
+- name: Wait for AWX Operator to be ready
   command: >
     k3s kubectl rollout status deployment/awx-operator-controller-manager
     -n {{ awx_namespace }} --timeout=300s
   changed_when: false
-  retries: 3
-  delay: 10
+
+- name: Verify operator images (must not be :latest)
+  command: >
+    k3s kubectl get deployment awx-operator-controller-manager
+    -n {{ awx_namespace }}
+    -o jsonpath='{.spec.template.spec.containers[*].image}'
+  register: operator_images
+  changed_when: false
+
+- name: Show operator images in use
+  debug:
+    msg: "AWX Operator images: {{ operator_images.stdout }}"

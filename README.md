@@ -1,246 +1,174 @@
 # Infrastructure as Code — AWX on k3s
 
-## Structure
+## Project Structure
 
 ```
 .
-├── ansible.cfg                          # Ansible config (roles_path, inventory)
+├── ansible.cfg                              # roles_path + inventory config
 ├── ansible/
-│   ├── inventory/hosts.yml              # Global host inventory
-│   ├── group_vars/all.yml               # Global variables
-│   ├── awx-deployment/                  # AWX on k3s deployment project
-│   │   ├── awx_site.yml                 # Main AWX orchestration playbook
-│   │   ├── awx_group_vars/all.yml       # AWX-specific variable overrides
-│   │   ├── awx_inventory/hosts.yml      # AWX-specific inventory (standalone use)
-│   │   └── awx_roles/                   # AWX deployment roles
-│   │       ├── common/                  # System prerequisites
-│   │       ├── k3s/                     # k3s install & config
-│   │       ├── kubectl/                 # kubectl setup
-│   │       ├── awx_operator/            # AWX Operator deployment
-│   │       ├── awx/                     # AWX instance + PVCs
-│   │       ├── ingress/                 # Traefik ingress
-│   │       └── cert_manager/            # Optional Let's Encrypt TLS
-│   └── playbook/                        # General-purpose automation roles
-│       ├── add_hosts/
-│       ├── apache/
-│       ├── aws/
-│       ├── common-server/
-│       ├── common/
-│       ├── crowdstrike/
-│       ├── deploy_vm/
-│       ├── docker/
-│       ├── git/
-│       ├── java/
-│       ├── jboss/
-│       ├── nginx/
-│       ├── os_hardening/
-│       ├── patching/
-│       ├── remove_host/
-│       ├── server-info/
+│   ├── inventory/
+│   │   ├── hosts.yml                        # Host inventory
+│   │   └── group_vars/all.yml               # Global variables (auto-loaded)
+│   ├── group_vars/all.yml                   # Global variables
+│   ├── awx-deployment/                      # AWX on k3s — self-contained project
+│   │   ├── awx_site.yml                     # Main orchestration playbook
+│   │   ├── awx_group_vars/all.yml           # AWX-specific overrides
+│   │   ├── awx_inventory/hosts.yml          # Standalone inventory
+│   │   └── awx_roles/
+│   │       ├── common/                      # System prerequisites
+│   │       ├── k3s/                         # k3s install & config
+│   │       ├── kubectl/                     # kubectl setup
+│   │       ├── awx_operator/               # AWX Operator (kustomize)
+│   │       ├── awx/                         # AWX instance + CRD
+│   │       ├── ingress/                     # Traefik ingress
+│   │       └── cert_manager/               # Optional Let's Encrypt TLS
+│   └── playbook/                            # General-purpose automation roles
+│       ├── add_hosts/    ├── apache/    ├── aws/        ├── common-server/
+│       ├── common/       ├── crowdstrike/ ├── deploy_vm/ ├── docker/
+│       ├── git/          ├── java/      ├── jboss/      ├── nginx/
+│       ├── os_hardening/ ├── patching/  ├── remove_host/ ├── server-info/
 │       └── ssh_hardening/
-└── terraform/                           # Cloud infra provisioning
+└── terraform/                               # Cloud infra provisioning
 ```
 
 ---
 
-## Deployment Methods
+## Quick Start
 
-### Method 1 — Deploy FROM the target server (git clone directly on server)
-
-This is the simplest approach. Clone the repo onto the server that will run AWX,
-then run Ansible locally — no SSH needed.
-
-**Step 1: Clone the repo on the target server**
+### Step 1 — Clone and configure
 
 ```bash
 git clone <your-repo-url> /opt/iac
 cd /opt/iac
+
+pip3 install ansible --break-system-packages
 ```
 
-**Step 2: Install Ansible**
-
-```bash
-pip3 install ansible kubernetes pyyaml --break-system-packages
-```
-
-**Step 3: Set localhost in inventory**
-
-Edit `ansible/inventory/hosts.yml`:
+### Step 2 — Edit inventory
 
 ```yaml
+# ansible/inventory/hosts.yml
 k3s_masters:
   hosts:
     awx-master-01:
       ansible_host: 127.0.0.1
-      ansible_connection: local     # no SSH — runs directly on this machine
-      ip: 192.168.1.10              # server's actual IP (used by k3s node binding)
-
-k3s_workers:
-  hosts: {}
+      ansible_connection: local   # deploy on this server directly
+      ip: 192.168.1.240           # this server's real IP
+      k3s_role: server
 ```
 
-**Step 4: Configure variables**
+### Step 3 — Edit variables
 
 ```bash
-vi ansible/group_vars/all.yml
+vi ansible/inventory/group_vars/all.yml
 vi ansible/awx-deployment/awx_group_vars/all.yml
 ```
 
 Minimum changes:
 ```yaml
-awx_fqdn: awx.example.com          # your domain or server IP
-awx_admin_password: "YourPassword" # change this
-timezone: UTC                       # your timezone
+awx_fqdn: awx.example.com
+awx_admin_password: "YourSecurePassword"
+timezone: Asia/Phnom_Penh
 ```
 
-**Step 5: Run**
-
-```bash
-ansible-playbook -i ansible/inventory/hosts.yml \
-  ansible/awx-deployment/awx_site.yml -v
-```
-
-> **Note:** The user running Ansible must have sudo or be root.
-> No SSH keys required when using `ansible_connection: local`.
-
----
-
-### Method 2 — Deploy FROM a control machine (remote targets)
-
-Use this when you manage multiple servers from a separate Ansible control node.
-
-
-
-**Step 1: Install Ansible**
-
-```bash
-yum install git ansible python3-pip3
-pip3 install ansible kubernetes pyyaml
-```
-**Step 2: Clone the repo on your control machine**
-
-```bash
-git clone <your-repo-url> /opt/iac
-cd /opt/awx
-
-**Step 3: Set remote hosts in inventory**
-
-Edit `ansible/inventory/hosts.yml`:
-
+If behind a proxy, uncomment in `group_vars/all.yml`:
 ```yaml
-all:
-  vars:
-    ansible_user: root
-    ansible_ssh_private_key_file: ~/.ssh/id_rsa
-
-k3s_masters:
-  hosts:
-    awx-master-01:
-      ansible_host: 192.168.1.10   # target server IP
-      ip: 192.168.1.10
-
-k3s_workers:
-  hosts: {}
+https_proxy: "http://proxy.example.com:3128"
+http_proxy: "http://proxy.example.com:3128"
 ```
 
-**Step 4: Configure variables**
-
-```bash
-vi ansible/group_vars/all.yml
-vi ansible/awx-deployment/awx_group_vars/all.yml
-```
-
-**Step 5: Test connectivity**
-
-```bash
-ansible -i ansible/inventory/hosts.yml all -m ping
-```
-
-**Step 6: Run**
+### Step 4 — Deploy
 
 ```bash
 ansible-playbook -i ansible/inventory/hosts.yml \
   ansible/awx-deployment/awx_site.yml -v
 ```
 
----
+### Step 5 — Access AWX
 
-## Key Variables to Change Before Running
-
-| File | Variable | Description |
-|------|----------|-------------|
-| `ansible/group_vars/all.yml` | `timezone` | Your server timezone (e.g. `Asia/Phnom_Penh`) |
-| `ansible/group_vars/all.yml` | `domain_suffix` | Your domain (e.g. `example.com`) |
-| `ansible/awx-deployment/awx_group_vars/all.yml` | `awx_fqdn` | AWX URL (e.g. `awx.example.com`) |
-| `ansible/awx-deployment/awx_group_vars/all.yml` | `awx_admin_password` | AWX admin password |
-| `ansible/inventory/hosts.yml` | `ansible_host` | Target server IP |
-| `ansible/inventory/hosts.yml` | `ip` | Server IP used by k3s |
+```
+http://awx.example.com   (or http://<server-ip>)
+Username: admin
+Password: value of awx_admin_password
+```
 
 ---
 
-## Run Options
+## Version Matrix (tested & working)
 
-### Full deployment
+| Component        | Version   | Notes                                      |
+|------------------|-----------|--------------------------------------------|
+| AWX Operator     | 2.19.1    | Installed via kustomize (not single YAML)  |
+| AWX              | 24.6.1    | Must match operator's bundled image        |
+| PostgreSQL       | 15        | Managed by operator                        |
+| kube-rbac-proxy  | v0.15.0   | Remapped from gcr.io → quay.io/brancz     |
+| k3s              | v1.30.0+k3s1 | Note: +k3s1 suffix required             |
+
+---
+
+## Run by Tags
+
 ```bash
-ansible-playbook -i ansible/inventory/hosts.yml \
-  ansible/awx-deployment/awx_site.yml -v
+ansible-playbook ... --tags common        # System packages, kernel config
+ansible-playbook ... --tags k3s           # k3s install only
+ansible-playbook ... --tags kubectl       # kubectl setup only
+ansible-playbook ... --tags awx_operator  # AWX Operator only
+ansible-playbook ... --tags awx           # AWX instance only
+ansible-playbook ... --tags ingress       # Traefik ingress only
+ansible-playbook ... --tags cert_manager  # TLS only
 ```
 
-### Run only specific phases using tags
-```bash
-# System prerequisites only
-ansible-playbook ... --tags common
+---
 
-# k3s install only
-ansible-playbook ... --tags k3s
+## Known Issues & Fixes Applied
 
-# AWX Operator only
-ansible-playbook ... --tags awx_operator
+### 1. roles not found
+**Cause:** `ansible.cfg` `roles_path` must include both `ansible/playbook` AND `ansible/awx-deployment/awx_roles`
+**Fix:** `roles_path = ansible/playbook:ansible/awx-deployment/awx_roles`
 
-# AWX instance only
-ansible-playbook ... --tags awx
+### 2. `k3s_role` / `k3s_cluster_cidr` undefined
+**Cause:** Variables not defined in role defaults or group_vars not loaded
+**Fix:** Added defaults to `k3s/defaults/main.yml`; `group_vars` must be at `ansible/inventory/group_vars/all.yml`
 
-# Ingress only
-ansible-playbook ... --tags ingress
+### 3. k3s download failed
+**Cause:** Server behind proxy or firewall blocking GitHub
+**Fix:** Set `https_proxy` / `http_proxy` in `group_vars/all.yml`; or set `k3s_skip_download: "true"` and pre-place binary
 
-# TLS / cert-manager only
-ansible-playbook ... --tags cert_manager
-```
+### 4. `web_manage_replicas` undefined in operator
+**Cause:** `awx-operator:latest` is a broken nightly build
+**Fix:** Pin operator to `2.19.1` using kustomize; never use `:latest`
 
-### Dry-run (no changes applied)
-```bash
-ansible-playbook -i ansible/inventory/hosts.yml \
-  ansible/awx-deployment/awx_site.yml --check -v
-```
+### 5. AWX Operator deploy/awx-operator.yaml 404
+**Cause:** AWX Operator 2.x removed single-file manifest; uses kustomize
+**Fix:** `kustomize build github.com/ansible/awx-operator/config/default?ref=2.19.1`
 
-### Syntax check
-```bash
-ansible-playbook -i ansible/inventory/hosts.yml \
-  ansible/awx-deployment/awx_site.yml --syntax-check
-```
+### 6. `gcr.io/kubebuilder/kube-rbac-proxy` ImagePullBackOff
+**Cause:** `gcr.io/kubebuilder` registry was shut down by Google
+**Fix:** Remap in kustomization.yaml to `quay.io/brancz/kube-rbac-proxy:v0.15.0`
+
+### 7. `image_version: 24.1.0` mismatch
+**Cause:** AWX image version must match operator's bundled version
+**Fix:** Operator 2.19.1 ships with AWX 24.6.1 — use `awx_version: "24.6.1"`
 
 ---
 
 ## Post-Deployment Verification
 
 ```bash
-# Check cluster nodes
+# Cluster nodes
 k3s kubectl get nodes
 
-# Check all pods
+# All pods
 k3s kubectl get pods -A
 
-# Check AWX pods specifically
+# AWX pods specifically
 k3s kubectl get pods -n awx
 
-# Check AWX instance status
-k3s kubectl get awx -n awx
+# AWX CR status
+k3s kubectl get awx awx -n awx
 
-# Check storage
+# Storage
 k3s kubectl get pvc -n awx
-
-# Check ingress
-k3s kubectl get ingress -n awx
 
 # Get admin password
 k3s kubectl get secret awx-admin-password \
@@ -249,43 +177,12 @@ k3s kubectl get secret awx-admin-password \
 
 ---
 
-## Access AWX
+## General Automation Roles
 
-After deployment, AWX is available at:
-
-```
-http://awx.example.com     # HTTP (default)
-https://awx.example.com    # HTTPS (if TLS enabled)
-```
-
-If you don't have DNS set up, add a hosts entry on your local machine:
-
-```bash
-# Linux / Mac
-echo "192.168.1.10  awx.example.com" | sudo tee -a /etc/hosts
-
-# Windows (run as Administrator)
-echo 192.168.1.10  awx.example.com >> C:\Windows\System32\drivers\etc\hosts
-```
-
-Or access directly via IP:
-```
-http://192.168.1.10
-```
-
-Login credentials:
-- **Username:** `admin`
-- **Password:** value of `awx_admin_password` in your group_vars
-
----
-
-## General Automation — playbook/ roles
-
-Because `ansible.cfg` sets `roles_path = ansible/playbook`, any playbook can
-reference these roles by name directly without specifying a path:
+`ansible.cfg` sets `roles_path = ansible/playbook` so any playbook can use these roles by name:
 
 ```yaml
-# example-playbook.yml
+# example.yml
 - hosts: all
   roles:
     - patching
@@ -294,9 +191,8 @@ reference these roles by name directly without specifying a path:
     - docker
 ```
 
-Run it with:
 ```bash
-ansible-playbook -i ansible/inventory/hosts.yml example-playbook.yml -v
+ansible-playbook -i ansible/inventory/hosts.yml example.yml -v
 ```
 
 ---
@@ -304,69 +200,19 @@ ansible-playbook -i ansible/inventory/hosts.yml example-playbook.yml -v
 ## Scaling
 
 ### Single-node → HA (3 masters)
-
-Update `ansible/inventory/hosts.yml`:
 ```yaml
 k3s_masters:
   hosts:
-    awx-master-01:
-      ansible_host: 192.168.1.10
-      ip: 192.168.1.10
-    awx-master-02:
-      ansible_host: 192.168.1.11
-      ip: 192.168.1.11
-    awx-master-03:
-      ansible_host: 192.168.1.12
-      ip: 192.168.1.12
+    awx-master-01: {ansible_host: 192.168.1.10, ip: 192.168.1.10}
+    awx-master-02: {ansible_host: 192.168.1.11, ip: 192.168.1.11}
+    awx-master-03: {ansible_host: 192.168.1.12, ip: 192.168.1.12}
 ```
-
-Re-run the playbook — it handles adding nodes idempotently.
 
 ### Add workers
 ```yaml
 k3s_workers:
   hosts:
-    awx-worker-01:
-      ansible_host: 192.168.1.20
-      ip: 192.168.1.20
+    awx-worker-01: {ansible_host: 192.168.1.20, ip: 192.168.1.20, k3s_role: agent}
 ```
 
----
-
-## Troubleshooting
-
-```bash
-# Pods not starting
-k3s kubectl get events -n awx
-k3s kubectl describe pod -n awx <pod-name>
-k3s kubectl logs -n awx <pod-name>
-
-# Resource issues
-k3s kubectl top nodes
-k3s kubectl top pods -n awx
-
-# Ingress not working
-k3s kubectl get ingress -n awx -o yaml
-k3s kubectl describe ingress awx-ingress -n awx
-
-# Port-forward for local testing (bypasses ingress)
-k3s kubectl port-forward svc/awx-service 8080:80 -n awx
-# Then open: http://localhost:8080
-
-# Database issues
-k3s kubectl logs -n awx awx-postgres-0
-k3s kubectl get pvc -n awx
-```
-
----
-
-## Backup
-
-```bash
-# Backup AWX database
-k3s kubectl exec -n awx awx-postgres-0 -- \
-  pg_dump -U awx awx > awx-backup-$(date +%Y%m%d).sql
-
-# Backup secrets
-k3s kubectl get secrets -n awx -o yaml > awx-secrets-backup.yaml
-```
+Re-run the playbook — k3s role handles joining idempotently.
