@@ -16,18 +16,17 @@
   register: ingress_apply
   changed_when: "'created' in ingress_apply.stdout or 'configured' in ingress_apply.stdout"
 
-- name: Wait for Ingress to get an address
-  command: >
-    k3s kubectl get ingress awx-ingress
-    -n {{ awx_namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-  register: ingress_ip
-  until: ingress_ip.stdout != ""
+- name: Verify AWX ingress exists
+  command: k3s kubectl get ingress awx-ingress -n awx
+  register: ingress_check
   retries: 20
-  delay: 10
+  delay: 5
+  until: ingress_check.rc == 0
   changed_when: false
 
-- name: Print Ingress info
-  debug:
-    msg:
-      - "Ingress IP: {{ ingress_ip.stdout }}"
-      - "AWX URL: http{{ 's' if use_tls else '' }}://{{ awx_fqdn }}"
+- name: Get ingress host
+  command: >
+    k3s kubectl get ingress awx-ingress -n awx
+    -o jsonpath='{.spec.rules[0].host}'
+  register: ingress_host
+  changed_when: false

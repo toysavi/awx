@@ -1,4 +1,7 @@
 ---
+# -----------------------------
+# COMMON
+# -----------------------------
 - name: AWX on k3s — system prerequisites
   hosts: k3s_masters:k3s_workers
   become: true
@@ -6,6 +9,9 @@
   roles:
     - role: common
 
+# -----------------------------
+# K3S INSTALL
+# -----------------------------
 - name: AWX on k3s — install k3s
   hosts: k3s_masters:k3s_workers
   become: true
@@ -14,38 +20,58 @@
   roles:
     - role: k3s
 
+# -----------------------------
+# KUBECTL CONFIG
+# -----------------------------
 - name: AWX on k3s — configure kubectl
-  hosts: k3s_masters[0]
+  hosts: k3s_masters
   become: true
+  run_once: true
   tags: [kubectl]
   roles:
     - role: kubectl
 
+# -----------------------------
+# AWX OPERATOR
+# -----------------------------
 - name: AWX on k3s — deploy AWX Operator
-  hosts: k3s_masters[0]
+  hosts: k3s_masters
   become: true
+  run_once: true
   tags: [awx_operator]
   roles:
     - role: awx_operator
 
+# -----------------------------
+# AWX INSTANCE
+# -----------------------------
 - name: AWX on k3s — deploy AWX instance
-  hosts: k3s_masters[0]
+  hosts: k3s_masters
   become: true
+  run_once: true
   tags: [awx]
   roles:
     - role: awx
 
+# -----------------------------
+# INGRESS
+# -----------------------------
 - name: AWX on k3s — configure Traefik ingress
-  hosts: k3s_masters[0]
+  hosts: k3s_masters
   become: true
+  run_once: true
   tags: [ingress]
   roles:
     - role: ingress
 
+# -----------------------------
+# CERT-MANAGER
+# -----------------------------
 - name: AWX on k3s — cert-manager (optional TLS)
-  hosts: k3s_masters[0]
+  hosts: k3s_masters
   become: true
+  run_once: true
   tags: [cert_manager]
   roles:
     - role: cert_manager
-      when: certmanager_enabled | bool
+  when: certmanager_enabled | default(false) | bool
