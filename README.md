@@ -36,21 +36,34 @@
 ## Quick Start
 
 ### Step 1 — Clone and configure
+- Install package for Debien/Ubuntu
+```
+apt instll git ansible python3 python3-pip3 -y
+```
+- Install package for Oracle/RHEL
+```
+yum instll git  python3 python3-pip3 -y
+pip3 install ansible 
+```
 
+- Clone Code
 ```bash
-git clone <your-repo-url> /opt/iac
-cd /opt/iac
-
-pip3 install ansible --break-system-packages
+mkdir -p /opt/awx && chmod 655 /opt/awx
+git clone https://github.com/toysavi/awx.git /opt/awx
+cd /opt/awx
 ```
 
 ### Step 2 — Edit inventory
+Edit ansible invetory
+```yaml
+vi ansible/inventory/hosts.yml
+```
 
 ```yaml
 # ansible/inventory/hosts.yml
 k3s_masters:
   hosts:
-    awx-master-01:
+    awx-master-01: # Change Server name
       ansible_host: 127.0.0.1
       ansible_connection: local   # deploy on this server directly
       ip: 192.168.1.240           # this server's real IP
