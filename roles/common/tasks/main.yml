@@ -1,63 +1,19 @@
 ---
 - name: Set timezone
   timezone:
-    name: "{{ timezone }}"
+    name: Asia/Phnom_Penh
 
 - name: Install common packages
   package:
-    name: "{{ common_packages }}"
+    name:
+      - vim
+      - curl
+      - wget
+      - git
     state: present
 
-- name: Ensure chronyd enabled
-  service:
-    name: chronyd
-    state: started
-    enabled: true
-
-- name: Create admin users
+- name: Ensure sudo user
   user:
-    name: "{{ item }}"
+    name: root
     groups: wheel
-    append: true
-    shell: /bin/bash
-    create_home: true
-  loop: "{{ admin_users }}"
-
-- name: Add SSH authorized keys
-  authorized_key:
-    user: "{{ item.key }}"
-    key: "{{ item.value }}"
-    state: present
-  loop: "{{ ssh_public_keys | dict2items }}"
-
-- name: Configure sudo without password
-  copy:
-    dest: "/etc/sudoers.d/99-wheel"
-    content: "%wheel ALL=(ALL) NOPASSWD: ALL"
-    mode: '0440'
-
-- name: Disable SELinux temporarily
-  selinux:
-    policy: targeted
-    state: permissive
-  when: ansible_os_family == "RedHat"
-
-- name: Enable firewalld
-  service:
-    name: firewalld
-    state: started
-    enabled: true
-  when: ansible_os_family == "RedHat"
-
-- name: Open SSH firewall port
-  firewalld:
-    service: ssh
-    permanent: true
-    immediate: true
-    state: enabled
-  when: ansible_os_family == "RedHat"
-
-- name: Update all packages
-  package:
-    name: "*"
-    state: latest
+    append: yes
