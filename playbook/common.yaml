@@ -26,8 +26,8 @@
 
   tasks:
 
-    - name: Add host into AWX inventory (DB)
-      delegate_to: localhost
+    - name: Register host into AWX inventory
+      run_once: true
       awx.awx.host:
         controller_host: "{{ lookup('env','CONTROLLER_HOST') }}"
         controller_oauthtoken: "{{ lookup('env','CONTROLLER_OAUTH_TOKEN') }}"
