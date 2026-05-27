@@ -1,0 +1,7 @@
+---
+- name: Configure Common Linux Servers
+  hosts: all
+  become: true
+
+  roles:
+    - common
