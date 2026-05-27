@@ -1,13 +1,13 @@
 ---
 - name: Create runtime host from survey input
-  hosts: "{{ vm_name }}"
+  hosts: runtime_target
   gather_facts: false
 
   tasks:
 
     - name: Add target server dynamically
       add_host:
-        name: runtime_target
+        name: "{{ vm_name }}"
         ansible_host: "{{ target_ip }}"
         ansible_user: "{{ ssh_user }}"
         ansible_password: "{{ ssh_password }}"
