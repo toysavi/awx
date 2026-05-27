@@ -33,13 +33,7 @@
         controller_oauthtoken: "{{ lookup('env','CONTROLLER_OAUTH_TOKEN') }}"
 
         name: "{{ vm_name }}"
-
-        inventory: >-
-          {{
-            'Production'
-            if environment == 'Production'
-            else 'Non-Production'
-          }}
+        inventory: "{{ environment | default('Non-Production') }}"
 
         variables:
           ansible_host: "{{ target_ip }}"
