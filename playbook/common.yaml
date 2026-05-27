@@ -1,7 +1,37 @@
 ---
-- name: Configure Common Linux Servers
+- name: Bootstrap Linux Server
   hosts: all
   become: true
 
+  vars:
+    ansible_user: "{{ ssh_user }}"
+    ansible_password: "{{ ssh_password }}"
+    ansible_port: "{{ ssh_port }}"
+
   roles:
     - common
+
+  tasks:
+
+    - name: Add host into AWX inventory
+      delegate_to: localhost
+
+      awx.awx.host:
+        controller_host: "{{ lookup('env','CONTROLLER_HOST') }}"
+        controller_oauthtoken: "{{ lookup('env','CONTROLLER_OAUTH_TOKEN') }}"
+
+        name: "{{ vm_name }}"
+
+        inventory: >-
+          {{
+            'Production'
+            if environment == 'Production'
+            else 'Non-Production'
+          }}
+
+        variables:
+          ansible_host: "{{ target_ip }}"
+          ansible_user: "{{ ssh_user }}"
+          ansible_port: "{{ ssh_port }}"
+
+        state: present
