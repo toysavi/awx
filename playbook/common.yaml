@@ -1,21 +1,33 @@
 ---
-- name: Bootstrap Linux Server
-  hosts: all
-  become: true
+- name: Create runtime host from survey input
+  hosts: localhost
+  gather_facts: false
 
-  vars:
-    ansible_user: "{{ ssh_user }}"
-    ansible_password: "{{ ssh_password }}"
-    ansible_port: "{{ ssh_port }}"
+  tasks:
+
+    - name: Add target server dynamically
+      add_host:
+        name: runtime_target
+        ansible_host: "{{ target_ip }}"
+        ansible_user: "{{ ssh_user }}"
+        ansible_password: "{{ ssh_password }}"
+        ansible_port: "{{ ssh_port }}"
+        ansible_connection: ssh
+
+
+- name: Bootstrap Linux Server
+  hosts: runtime_target
+  become: true
+  gather_facts: true
 
   roles:
     - common
 
+
   tasks:
 
-    - name: Add host into AWX inventory
+    - name: Add host into AWX inventory (DB)
       delegate_to: localhost
-
       awx.awx.host:
         controller_host: "{{ lookup('env','CONTROLLER_HOST') }}"
         controller_oauthtoken: "{{ lookup('env','CONTROLLER_OAUTH_TOKEN') }}"
