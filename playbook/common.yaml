@@ -1,6 +1,6 @@
 ---
 - name: Create runtime host from survey input
-  hosts: localhost
+  hosts: "{{ vm_name }}"
   gather_facts: false
 
   tasks:
@@ -16,7 +16,7 @@
 
 
 - name: Bootstrap Linux Server
-  hosts: runtime_target
+  hosts: "{{ vm_name }}"
   become: true
   gather_facts: true
 
