@@ -1,0 +1,164 @@
+---
+# =============================================================================
+# solaris_ssh_hardening.yml
+# SSH + Password hardening for Solaris
+# Key differences:
+#   - sshd_config path  : /etc/ssh/sshd_config (same)
+#   - service restart   : svcadm (not systemctl)
+#   - PAM files         : /etc/pam.conf (not /etc/pam.d/)
+#   - pwquality         : /etc/default/passwd (not pwquality.conf)
+#   - faillock          : pam_unix with retry in /etc/pam.conf
+#   - login.defs        : /etc/default/login (not /etc/login.defs)
+# =============================================================================
+
+# ── sshd_config permissions ─────────────────────────────────
+
+- name: Set sshd_config ownership to root:root — Solaris
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0600'
+
+# ── sshd_config hardening ───────────────────────────────────
+
+- name: Set SSH Port to 2222 — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port '
+    line: 'Port 2222'
+    backrefs: true
+
+- name: Set SSH LogLevel to INFO — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LogLevel '
+    line: 'LogLevel INFO'
+    backrefs: true
+
+- name: Disable HostbasedAuthentication — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?HostbasedAuthentication '
+    line: 'HostbasedAuthentication no'
+    backrefs: true
+
+- name: Disable PermitEmptyPasswords — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords '
+    line: 'PermitEmptyPasswords no'
+    backrefs: true
+
+- name: Disable PermitUserEnvironment — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitUserEnvironment '
+    line: 'PermitUserEnvironment no'
+    backrefs: true
+
+- name: Set SSH warning banner — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Banner '
+    line: 'Banner /etc/issue.net'
+    backrefs: true
+
+- name: Set MaxAuthTries to 4 — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries '
+    line: 'MaxAuthTries 4'
+    backrefs: true
+
+- name: Set MaxSessions to 10 — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxSessions '
+    line: 'MaxSessions 10'
+    backrefs: true
+
+- name: Set LoginGraceTime to 60 — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LoginGraceTime '
+    line: 'LoginGraceTime 60'
+    backrefs: true
+
+- name: Set ClientAliveInterval to 900 — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveInterval '
+    line: 'ClientAliveInterval 900'
+    backrefs: true
+
+- name: Set ClientAliveCountMax to 0 — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveCountMax '
+    line: 'ClientAliveCountMax 0'
+    backrefs: true
+
+- name: Restart sshd via svcadm — Solaris
+  ansible.builtin.command:
+    cmd: svcadm restart ssh
+  changed_when: true
+
+# ── Password quality — Solaris uses /etc/default/passwd ─────
+
+- name: Set password quality requirements — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/default/passwd
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backrefs: true
+  loop:
+    - { regexp: '^#?MINWEEKS=',  line: 'MINWEEKS=0' }
+    - { regexp: '^#?MAXWEEKS=',  line: 'MAXWEEKS=52' }
+    - { regexp: '^#?PASSLENGTH=', line: 'PASSLENGTH=8' }
+    - { regexp: '^#?NAMECHECK=',  line: 'NAMECHECK=YES' }
+    - { regexp: '^#?HISTORY=',    line: 'HISTORY=5' }
+
+# ── PAM failed login attempts — Solaris uses /etc/pam.conf ──
+
+- name: Configure PAM pam_unix retry for ssh — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/pam.conf
+    regexp: '^sshd\s+auth\s+requisite\s+pam_unix'
+    line: 'sshd    auth    requisite       pam_unix.so.1 retry=5'
+
+# ── Password expiration — Solaris uses /etc/default/login ───
+
+- name: Set MAXWEEKS password expiry — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/default/login
+    regexp: '^#?MAXWEEKS='
+    line: 'MAXWEEKS=52'               # 52 weeks = 365 days
+    backrefs: true
+
+- name: Set MINWEEKS password change interval — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/default/login
+    regexp: '^#?MINWEEKS='
+    line: 'MINWEEKS=0'
+    backrefs: true
+
+- name: Set RETRIES login attempts — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/default/login
+    regexp: '^#?RETRIES='
+    line: 'RETRIES=5'
+    backrefs: true
+
+# ── Verify ──────────────────────────────────────────────────
+
+- name: Show sshd_config — Solaris
+  ansible.builtin.command:
+    cmd: sshd -T
+  register: sshd_verify
+  changed_when: false
+  failed_when: false
+
+- name: Debug sshd config — Solaris
+  ansible.builtin.debug:
+    var: sshd_verify.stdout_lines

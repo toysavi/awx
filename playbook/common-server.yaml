@@ -197,6 +197,7 @@
 
   roles:
     - common-server
+    - hardening
 
   post_tasks:
     - name: Collect service facts

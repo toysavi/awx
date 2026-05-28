@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# ssh_hardening.yml
+# SSH + PAM + Password hardening for all supported OS
+# =============================================================================
+
+- name: Import SSH hardening for Oracle Linux 9
+  ansible.builtin.include_tasks: ../template/ssh/oracle9_ssh_hardening.yml
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '9'
+
+- name: Import SSH hardening for Oracle Linux 8
+  ansible.builtin.include_tasks: ../template/ssh/oracle8_ssh_hardening.yml
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '8'
+
+- name: Import SSH hardening for Ubuntu / Debian
+  ansible.builtin.include_tasks: ../template/ssh/ubuntu_ssh_hardening.yml
+  when:
+    - ansible_facts.os_family == 'Debian'
+
+- name: Import SSH hardening for Solaris
+  ansible.builtin.include_tasks: ../template/ssh/solaris_ssh_hardening.yml
+  when:
+    - ansible_facts.os_family == 'Solaris'

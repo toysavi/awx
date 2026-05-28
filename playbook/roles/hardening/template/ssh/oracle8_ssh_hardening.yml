@@ -1,0 +1,191 @@
+---
+# =============================================================================
+# oracle8_ssh_hardening.yml
+# SSH + PAM + Password hardening for Oracle Linux 8
+# Identical to OL9 — faillock.conf available since OL8
+# =============================================================================
+
+# ── sshd_config permissions ─────────────────────────────────
+
+- name: Set sshd_config ownership to root:root — OL8
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0600'
+
+# ── sshd_config hardening ───────────────────────────────────
+
+- name: Set SSH Port to 2222 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port '
+    line: 'Port 2222'
+    backrefs: true
+
+- name: Set SSH LogLevel to INFO — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LogLevel '
+    line: 'LogLevel INFO'
+    backrefs: true
+
+- name: Disable HostbasedAuthentication — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?HostbasedAuthentication '
+    line: 'HostbasedAuthentication no'
+    backrefs: true
+
+- name: Disable PermitEmptyPasswords — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords '
+    line: 'PermitEmptyPasswords no'
+    backrefs: true
+
+- name: Disable PermitUserEnvironment — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitUserEnvironment '
+    line: 'PermitUserEnvironment no'
+    backrefs: true
+
+- name: Set SSH warning banner — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Banner '
+    line: 'Banner /etc/issue.net'
+    backrefs: true
+
+- name: Set MaxAuthTries to 4 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries '
+    line: 'MaxAuthTries 4'
+    backrefs: true
+
+- name: Set MaxSessions to 10 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxSessions '
+    line: 'MaxSessions 10'
+    backrefs: true
+
+- name: Set LoginGraceTime to 60 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LoginGraceTime '
+    line: 'LoginGraceTime 60'
+    backrefs: true
+
+- name: Set ClientAliveInterval to 900 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveInterval '
+    line: 'ClientAliveInterval 900'
+    backrefs: true
+
+- name: Set ClientAliveCountMax to 0 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveCountMax '
+    line: 'ClientAliveCountMax 0'
+    backrefs: true
+
+- name: Restart sshd to apply changes — OL8
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+
+# ── Password quality ────────────────────────────────────────
+
+- name: Set password quality requirements — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backrefs: true
+  loop:
+    - { regexp: '^#?minlen',   line: 'minlen = 8' }
+    - { regexp: '^#?minclass', line: 'minclass = 4' }
+    - { regexp: '^#?dcredit',  line: 'dcredit = -1' }
+    - { regexp: '^#?ucredit',  line: 'ucredit = -1' }
+    - { regexp: '^#?ocredit',  line: 'ocredit = -1' }
+    - { regexp: '^#?lcredit',  line: 'lcredit = -1' }
+
+# ── PAM faillock ────────────────────────────────────────────
+
+- name: Configure faillock.conf — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backrefs: true
+  loop:
+    - { regexp: '^#?deny ',          line: 'deny = 5' }
+    - { regexp: '^#?fail_interval ', line: 'fail_interval = 900' }
+    - { regexp: '^#?unlock_time ',   line: 'unlock_time = 900' }
+
+- name: Configure PAM system-auth faillock — OL8
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/system-auth
+    marker: "# {mark} ANSIBLE MANAGED - faillock"
+    insertafter: '^auth.*pam_env'
+    block: |
+      auth        required                                    pam_faillock.so preauth silent deny=5 unlock_time=900 fail_interval=900
+      auth        sufficient                                  pam_unix.so nullok
+      auth        [default=die]                              pam_faillock.so authfail deny=5 unlock_time=900 fail_interval=900
+      account     required                                   pam_faillock.so
+
+- name: Configure PAM password-auth faillock — OL8
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/password-auth
+    marker: "# {mark} ANSIBLE MANAGED - faillock"
+    insertafter: '^auth.*pam_env'
+    block: |
+      auth        required                                    pam_faillock.so preauth silent deny=5 unlock_time=900 fail_interval=900
+      auth        sufficient                                  pam_unix.so nullok
+      auth        [default=die]                              pam_faillock.so authfail deny=5 unlock_time=900 fail_interval=900
+      account     required                                   pam_faillock.so
+
+# ── Password reuse ──────────────────────────────────────────
+
+- name: Configure password reuse limit in system-auth — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^password.*pam_pwhistory\.so'
+    line: 'password  requisite  pam_pwhistory.so try_first_pass local_users_only enforce_for_root retry=5 remember=5'
+
+- name: Configure pam_unix password in system-auth — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^password.*pam_unix\.so'
+    line: 'password  sufficient  pam_unix.so sha512 shadow nullok use_authtok try_first_pass remember=5'
+
+# ── Password expiration ─────────────────────────────────────
+
+- name: Set PASS_MAX_DAYS to 365 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: 'PASS_MAX_DAYS 365'
+
+- name: Set PASS_MIN_DAYS to 0 — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MIN_DAYS'
+    line: 'PASS_MIN_DAYS 0'
+
+# ── Verify ──────────────────────────────────────────────────
+
+- name: Show sshd_config — OL8
+  ansible.builtin.command:
+    cmd: sshd -T
+  register: sshd_verify
+  changed_when: false
+  failed_when: false
+
+- name: Debug sshd config — OL8
+  ansible.builtin.debug:
+    var: sshd_verify.stdout_lines

@@ -1,1 +1,12 @@
 ---
+# =============================================================================
+# SSH HARDENING
+# =============================================================================
+
+- name: Import SSH hardening tasks
+  ansible.builtin.include_tasks: ssh_hardening.yml
+  tags:
+    - ssh
+    - security
+  when:
+    - sv_common_enable | default(true) | bool

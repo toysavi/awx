@@ -1,0 +1,178 @@
+---
+# =============================================================================
+# ubuntu_ssh_hardening.yml
+# SSH + PAM + Password hardening for Ubuntu / Debian
+# Key differences from RedHat:
+#   - sshd service name  : ssh (not sshd)
+#   - PAM files          : /etc/pam.d/common-auth (not system-auth)
+#   - faillock           : pam_tally2 on older Ubuntu, pam_faillock on 22.04+
+#   - pwquality          : libpam-pwquality package required
+# =============================================================================
+
+- name: Install libpam-pwquality — Ubuntu
+  ansible.builtin.apt:
+    name: libpam-pwquality
+    state: present
+
+# ── sshd_config permissions ─────────────────────────────────
+
+- name: Set sshd_config ownership to root:root — Ubuntu
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0600'
+
+# ── sshd_config hardening ───────────────────────────────────
+
+- name: Set SSH Port to 2222 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port '
+    line: 'Port 2222'
+    backrefs: true
+
+- name: Set SSH LogLevel to INFO — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LogLevel '
+    line: 'LogLevel INFO'
+    backrefs: true
+
+- name: Disable HostbasedAuthentication — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?HostbasedAuthentication '
+    line: 'HostbasedAuthentication no'
+    backrefs: true
+
+- name: Disable PermitEmptyPasswords — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitEmptyPasswords '
+    line: 'PermitEmptyPasswords no'
+    backrefs: true
+
+- name: Disable PermitUserEnvironment — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitUserEnvironment '
+    line: 'PermitUserEnvironment no'
+    backrefs: true
+
+- name: Set SSH warning banner — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Banner '
+    line: 'Banner /etc/issue.net'
+    backrefs: true
+
+- name: Set MaxAuthTries to 4 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxAuthTries '
+    line: 'MaxAuthTries 4'
+    backrefs: true
+
+- name: Set MaxSessions to 10 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?MaxSessions '
+    line: 'MaxSessions 10'
+    backrefs: true
+
+- name: Set LoginGraceTime to 60 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?LoginGraceTime '
+    line: 'LoginGraceTime 60'
+    backrefs: true
+
+- name: Set ClientAliveInterval to 900 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveInterval '
+    line: 'ClientAliveInterval 900'
+    backrefs: true
+
+- name: Set ClientAliveCountMax to 0 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ClientAliveCountMax '
+    line: 'ClientAliveCountMax 0'
+    backrefs: true
+
+- name: Restart ssh to apply changes — Ubuntu
+  ansible.builtin.systemd:
+    name: ssh                        # Ubuntu uses 'ssh' not 'sshd'
+    state: restarted
+
+# ── Password quality ────────────────────────────────────────
+
+- name: Set password quality requirements — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    backrefs: true
+  loop:
+    - { regexp: '^#?minlen',   line: 'minlen = 8' }
+    - { regexp: '^#?minclass', line: 'minclass = 4' }
+    - { regexp: '^#?dcredit',  line: 'dcredit = -1' }
+    - { regexp: '^#?ucredit',  line: 'ucredit = -1' }
+    - { regexp: '^#?ocredit',  line: 'ocredit = -1' }
+    - { regexp: '^#?lcredit',  line: 'lcredit = -1' }
+
+# ── PAM faillock — Ubuntu 22.04+ ────────────────────────────
+
+- name: Configure PAM common-auth faillock — Ubuntu
+  ansible.builtin.blockinfile:
+    path: /etc/pam.d/common-auth
+    marker: "# {mark} ANSIBLE MANAGED - faillock"
+    insertbefore: '^auth.*pam_unix'
+    block: |
+      auth        required                                    pam_faillock.so preauth silent deny=5 unlock_time=900 fail_interval=900
+      auth        [default=die]                              pam_faillock.so authfail deny=5 unlock_time=900 fail_interval=900
+      account     required                                   pam_faillock.so
+
+# ── Password reuse ──────────────────────────────────────────
+
+- name: Configure password reuse limit — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password.*pam_pwhistory\.so'
+    line: 'password  requisite  pam_pwhistory.so try_first_pass local_users_only enforce_for_root retry=5 remember=5'
+    insertbefore: '^password.*pam_unix'
+
+- name: Configure pam_unix password — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password.*pam_unix\.so'
+    line: 'password  sufficient  pam_unix.so sha512 shadow nullok use_authtok try_first_pass remember=5'
+
+# ── Password expiration ─────────────────────────────────────
+
+- name: Set PASS_MAX_DAYS to 365 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: 'PASS_MAX_DAYS 365'
+
+- name: Set PASS_MIN_DAYS to 0 — Ubuntu
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MIN_DAYS'
+    line: 'PASS_MIN_DAYS 0'
+
+# ── Verify ──────────────────────────────────────────────────
+
+- name: Show sshd_config — Ubuntu
+  ansible.builtin.command:
+    cmd: sshd -T
+  register: sshd_verify
+  changed_when: false
+  failed_when: false
+
+- name: Debug sshd config — Ubuntu
+  ansible.builtin.debug:
+    var: sshd_verify.stdout_lines
