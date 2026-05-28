@@ -1,7 +1,6 @@
 ---
 # ============================================================
-# Play 1 — Build the in-memory host from survey vars
-# Runs on localhost (AWX controller); no SSH needed yet
+# Play 1 — Build in-memory host AND hoist vars to localhost
 # ============================================================
 - name: Register dynamic target into in-memory inventory
   hosts: localhost
@@ -11,30 +10,37 @@
   tasks:
     - name: Add target into in-memory group 'provisioning'
       ansible.builtin.add_host:
-        name: "{{ vm_name }}"           # human-readable, used as inventory hostname
-        groups: provisioning            # ALL subsequent plays target this group
+        name: "{{ vm_name }}"
+        groups: provisioning
         ansible_host: "{{ target_ip }}"
         ansible_user: "{{ ssh_user }}"
         ansible_password: "{{ ssh_password }}"
         ansible_port: "{{ ssh_port | default(22) }}"
         ansible_connection: ssh
         ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-        # Pass survey vars through as host vars so plays 2-3 can reference them
         target_ip: "{{ target_ip }}"
         ssh_user: "{{ ssh_user }}"
         ssh_port: "{{ ssh_port | default(22) }}"
         vm_name: "{{ vm_name }}"
         environment: "{{ environment | default('Non-Production') }}"
 
+    # FIX 1 — hoist survey vars onto localhost so Play 4 can read them
+    # without crossing into the provisioning group's hostvars scope
+    - name: Cache survey vars on localhost for Play 4
+      ansible.builtin.set_fact:
+        _vm_name: "{{ vm_name }}"
+        _target_ip: "{{ target_ip }}"
+        _ssh_user: "{{ ssh_user }}"
+        _ssh_port: "{{ ssh_port | default(22) }}"
+        _environment: "{{ environment | default('Non-Production') }}"
+
 
 # ============================================================
-# Play 2 — Wait for SSH to be ready, then gather facts
-# Must be a SEPARATE play so Ansible re-resolves 'provisioning'
-# group (which now exists in memory) at this play's start
+# Play 2 — Wait for SSH, gather facts
 # ============================================================
 - name: Wait for target to become reachable
   hosts: provisioning
-  gather_facts: false       # too early — SSH may not be up yet
+  gather_facts: false
 
   tasks:
     - name: Wait for SSH port to open
@@ -47,18 +53,16 @@
 
 
 # ============================================================
-# Play 3 — Bootstrap: apply common role + any extra roles
-# become: true because role tasks need sudo
+# Play 3 — Bootstrap: apply roles
 # ============================================================
 - name: Bootstrap Linux server
   hosts: provisioning
   become: true
-  gather_facts: false       # already done in play 2; skip for speed
+  gather_facts: false
 
   roles:
     - common
 
-  # (optional) additional tasks after roles
   tasks:
     - name: Verify expected services are running
       ansible.builtin.service_facts:
@@ -71,10 +75,10 @@
 
 # ============================================================
 # Play 4 — Persist host into AWX inventory
-# MUST run on localhost — awx.awx.host calls the AWX API,
-# it does NOT run on the remote target.
-# run_once is redundant here (only one host in group) but
-# kept as safety guard against accidental group expansion.
+# FIX 1: reads _vm_name etc. set_fact'd in Play 1 (localhost scope)
+# FIX 2: uses lookup('pipe') instead of ansible_date_time
+# FIX 3: no delegate_to / run_once — play-level hosts: localhost
+#         already guarantees one execution on the controller
 # ============================================================
 - name: Register host into AWX inventory
   hosts: localhost
@@ -87,18 +91,16 @@
         controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
         controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
 
-        name: "{{ vm_name }}"
-        inventory: "{{ environment | default('Non-Production') }}"
+        name: "{{ _vm_name }}"                              # FIX 1: scoped var
+        inventory: "{{ _environment }}"
         description: "Provisioned by AWX job {{ lookup('env', 'AWX_JOB_ID') }}"
 
         variables:
-          ansible_host: "{{ target_ip }}"
-          ansible_user: "{{ ssh_user }}"
-          ansible_port: "{{ ssh_port | default(22) }}"
+          ansible_host: "{{ _target_ip }}"
+          ansible_user: "{{ _ssh_user }}"
+          ansible_port: "{{ _ssh_port }}"
           provisioned_by: "awx"
-          provisioned_at: "{{ ansible_date_time.iso8601 | default(now(fmt='%Y-%m-%dT%H:%M:%S')) }}"
+          provisioned_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"  # FIX 2
 
         state: present
-      # Delegate to localhost explicitly — belt-and-suspenders
-      delegate_to: localhost
-      run_once: true
+      # FIX 3: delegate_to and run_once removed entirely
