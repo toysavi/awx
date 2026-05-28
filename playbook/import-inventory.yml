@@ -106,6 +106,9 @@
 
     - name: Register host into AWX inventory
       awx.awx.host:
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+        validate_certs: "{{ lookup('env', 'CONTROLLER_VALIDATE_CERTS') | default(false, true) }}"
         name: "{{ artifact_vm_name }}"
         inventory: "{{ artifact_target_environment }}"
         variables:
