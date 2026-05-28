@@ -1,0 +1,272 @@
+---
+# =============================================================================
+# LOAD OS VARIABLES
+# =============================================================================
+
+- name: Fetch OS dependent variables
+  ansible.builtin.include_vars:
+    file: "{{ item }}"
+    name: os_vars
+  with_first_found:
+    - files:
+        - "{{ ansible_facts.distribution }}_{{ ansible_facts.distribution_major_version }}.yml"
+        - "{{ ansible_facts.distribution }}.yml"
+        - "{{ ansible_facts.os_family }}_{{ ansible_facts.distribution_major_version }}.yml"
+        - "{{ ansible_facts.os_family }}.yml"
+      paths:
+        - vars
+      skip: true
+  tags:
+    - always
+
+- name: Fail if no OS vars file was found
+  ansible.builtin.fail:
+    msg: >
+      No vars file found for OS: {{ ansible_facts.distribution }}
+      {{ ansible_facts.distribution_major_version }}
+      (family: {{ ansible_facts.os_family }}).
+      Please create a matching file in vars/.
+  when: os_vars is not defined or os_vars | length == 0
+  tags:
+    - always
+
+# =============================================================================
+# DEBUG OS INFORMATION
+# =============================================================================
+
+- name: Debug OS distribution and version
+  ansible.builtin.debug:
+    msg:
+      distribution:          "{{ ansible_facts.distribution }}"
+      distribution_version:  "{{ ansible_facts.distribution_version }}"
+      distribution_major:    "{{ ansible_facts.distribution_major_version }}"
+      os_family:             "{{ ansible_facts.os_family }}"
+      kernel:                "{{ ansible_facts.kernel }}"
+      architecture:          "{{ ansible_facts.architecture }}"
+  tags:
+    - always
+# =============================================================================
+# SET DEFAULT VARIABLES
+# =============================================================================
+
+- name: Set OS dependent variables if not already defined
+  ansible.builtin.set_fact:
+    "{{ item.key }}": "{{ item.value }}"
+  when: item.key is not defined
+  loop: "{{ os_vars | dict2items }}"
+  tags:
+    - always
+
+- name: Set sv_common_enable default if not defined
+  ansible.builtin.set_fact:
+    sv_common_enable: true
+  when: sv_common_enable is not defined
+  tags:
+    - always
+
+# =============================================================================
+# VALIDATION
+# =============================================================================
+
+- name: Validate supported OS
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['RedHat', 'Debian', 'Solaris']
+    fail_msg: >
+      Unsupported OS Family: {{ ansible_facts.os_family }}.
+      Supported families: RedHat, Debian, Solaris.
+  tags:
+    - always
+
+# =============================================================================
+# ORIGINAL CONFIGURATION
+# =============================================================================
+
+- name: Import tasks for Oracle Linux 9 original config
+  ansible.builtin.include_tasks: oracle9_original_config.yml
+  tags:
+    - original_config
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '9'
+    - sv_common_enable | default(true) | bool
+
+- name: Import tasks for Oracle Linux 8 original config
+  ansible.builtin.include_tasks: oracle8_original_config.yml
+  tags:
+    - original_config
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '8'
+    - sv_common_enable | default(true) | bool
+
+- name: Import tasks for RedHat / CentOS original config
+  ansible.builtin.include_tasks: redhat_original_config.yml
+  tags:
+    - original_config
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - ansible_facts.distribution != 'OracleLinux'
+    - sv_common_enable | default(true) | bool
+
+- name: Import tasks for Solaris original config
+  ansible.builtin.include_tasks: solaris_original_config.yml
+  tags:
+    - original_config
+  when:
+    - ansible_facts.os_family == 'Solaris'
+    - sv_common_enable | default(true) | bool
+
+- name: Import tasks for Ubuntu original config
+  ansible.builtin.include_tasks: ubuntu_original_config.yml
+  tags:
+    - original_config
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - sv_common_enable | default(true) | bool
+
+# =============================================================================
+# AWX SSH CONFIGURATION
+# =============================================================================
+
+- name: Add AWX SSH public key to authorized_keys
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ lookup('file', playbook_dir + '/../inventory/awx.pub') }}"
+    state: present
+    path: /root/.ssh/authorized_keys
+    manage_dir: true
+  vars:
+    ansible_become: false
+  tags:
+    - sshcopyid
+  when:
+    - sv_common_enable | default(true) | bool
+
+# =============================================================================
+# LOCAL REPO CONFIGURATION
+# =============================================================================
+
+- name: Import local repo config for Oracle Linux 9
+  ansible.builtin.include_tasks: oracle9_localrepo.yml
+  tags:
+    - localrepo
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '9'
+    - sv_common_enable | default(true) | bool
+
+- name: Import local repo config for Oracle Linux 8
+  ansible.builtin.include_tasks: oracle8_localrepo.yml
+  tags:
+    - localrepo
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '8'
+    - sv_common_enable | default(true) | bool
+
+- name: Import local repo config for RedHat / CentOS
+  ansible.builtin.include_tasks: redhat_localrepo.yml
+  tags:
+    - localrepo
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - ansible_facts.distribution != 'OracleLinux'
+    - sv_common_enable | default(true) | bool
+
+- name: Import local repo config for Solaris
+  ansible.builtin.include_tasks: solaris_localrepo.yml
+  tags:
+    - localrepo
+  when:
+    - ansible_facts.os_family == 'Solaris'
+    - sv_common_enable | default(true) | bool
+
+# - name: Import local repo config for Ubuntu / Debian
+#   ansible.builtin.include_tasks: ubuntu_localrepo.yml
+#   tags:
+#     - localrepo
+#   when:
+#     - ansible_facts.os_family == 'Debian'
+#     - sv_common_enable | default(true) | bool
+
+
+
+# =============================================================================
+# NTP CONFIGURATION
+# =============================================================================
+
+- name: Import chrony config for Oracle Linux 9
+  ansible.builtin.include_tasks: oracle9_chrony.yml
+  tags:
+    - ntp
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '9'
+    - sv_common_enable | default(true) | bool
+
+- name: Import chrony config for Oracle Linux 8
+  ansible.builtin.include_tasks: oracle8_chrony.yml
+  tags:
+    - ntp
+  when:
+    - ansible_facts.distribution == 'OracleLinux'
+    - ansible_facts.distribution_major_version == '8'
+    - sv_common_enable | default(true) | bool
+
+- name: Import chrony config for RedHat / CentOS
+  ansible.builtin.include_tasks: redhat_chrony.yml
+  tags:
+    - ntp
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - ansible_facts.distribution != 'OracleLinux'
+    - sv_common_enable | default(true) | bool
+
+- name: Import chrony config for Ubuntu 20.04
+  ansible.builtin.include_tasks: ubuntu_chrony.yml
+  tags:
+    - ntp
+  when:
+    - ansible_facts.distribution == 'Ubuntu'
+    - ansible_facts.distribution_major_version | int in [20, 22, 24, 26]
+    - sv_common_enable | default(true) | bool
+
+- name: Import chrony config for Debian
+  ansible.builtin.include_tasks: ubuntu_chrony.yml   # same file, same config
+  tags:
+    - ntp
+  when:
+    - ansible_facts.distribution == 'Debian'
+    - sv_common_enable | default(true) | bool
+
+- name: Import NTP config for Solaris
+  ansible.builtin.include_tasks: solaris_ntp.yml
+  tags:
+    - ntp
+  when:
+    - ansible_facts.os_family == 'Solaris'
+    - sv_common_enable | default(true) | bool
+
+# =============================================================================
+# SSH HARDENING
+# =============================================================================
+
+# - name: Import tasks to configure SSH hardening
+#   ansible.builtin.include_tasks: ssh_hardening.yml
+#   tags:
+#     - ssh
+#     - security
+#   when:
+#     - sv_common_enable | bool
+
+# =============================================================================
+# SYSCTL CONFIGURATION
+# =============================================================================
+
+# - name: Import tasks to configure sysctl
+#   ansible.builtin.include_tasks: sysctl.yml
+#   tags:
+#     - sysctl
+#   when:
+#     - sv_common_enable | bool

@@ -1,8 +1,0 @@
----
-# Role: patching
-# Patch OS packages and report
-# TODO: Add your tasks here
-
-- name: Placeholder — patching
-  debug:
-    msg: "patching role — add tasks in tasks/main.yml"

@@ -1,0 +1,123 @@
+---
+# =============================================================================
+# oracle8_chrony.yml
+# Chrony NTP configuration for Oracle Linux 8
+# Default pool: pool 2.pool.ntp.org iburst  (same as OL9)
+# =============================================================================
+
+- name: Backup chrony.conf — OL8 (skip if backup exists)
+  ansible.builtin.copy:
+    src: /etc/chrony.conf
+    dest: /etc/chrony.conf.orig
+    remote_src: true
+    force: false
+  ignore_errors: true
+
+- name: Backup chronyd sysconfig — OL8 (skip if backup exists)
+  ansible.builtin.copy:
+    src: /etc/sysconfig/chronyd
+    dest: /etc/sysconfig/chronyd.orig
+    remote_src: true
+    force: false
+  ignore_errors: true
+
+- name: Enable and start chronyd — OL8
+  ansible.builtin.systemd:
+    name: chronyd
+    state: started
+    enabled: true
+
+- name: Comment out default pool line — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    regexp: '^pool 2\.pool\.ntp\.org iburst'
+    line: '# pool 2.pool.ntp.org iburst'
+    backrefs: true
+
+- name: Comment out sourcedir dhcp line — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    regexp: '^sourcedir /run/chrony-dhcp'
+    line: '# sourcedir /run/chrony-dhcp'
+    backrefs: true
+  ignore_errors: true        # OL8 may not have this line unlike OL9
+
+- name: Add primary NTP server — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    insertafter: '^# pool 2\.pool\.ntp\.org iburst'
+    line: 'server 192.168.1.5 iburst'
+
+- name: Add secondary NTP server — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    insertafter: '^server 192\.168\.1\.5 iburst'
+    line: 'server 192.168.1.6 iburst'
+
+- name: Set chronyd options — OL8
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/chronyd
+    regexp: '^(.*)OPTIONS=(.*)$'
+    line: 'OPTIONS="-u chrony"'
+    backrefs: true
+
+- name: Set timezone to Asia/Phnom_Penh — OL8
+  community.general.timezone:
+    name: Asia/Phnom_Penh
+
+- name: Restart chronyd to apply changes — OL8
+  ansible.builtin.systemd:
+    name: chronyd
+    state: restarted
+
+- name: Enable NTP sync — OL8
+  ansible.builtin.command:
+    cmd: timedatectl set-ntp on
+  changed_when: true
+
+- name: Wait for chrony to sync — OL8
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Show chrony sources — OL8
+  ansible.builtin.command:
+    cmd: chronyc sources
+  register: chrony_sources
+  changed_when: false
+  failed_when: false
+
+- name: Debug chrony sources — OL8
+  ansible.builtin.debug:
+    var: chrony_sources.stdout_lines
+
+- name: Show chrony sourcestats — OL8
+  ansible.builtin.command:
+    cmd: chronyc sourcestats
+  register: chrony_sourcestats
+  changed_when: false
+  failed_when: false
+
+- name: Debug chrony sourcestats — OL8
+  ansible.builtin.debug:
+    var: chrony_sourcestats.stdout_lines
+
+- name: Show timedatectl status — OL8
+  ansible.builtin.command:
+    cmd: timedatectl status
+  register: timedatectl_status
+  changed_when: false
+  failed_when: false
+
+- name: Debug timedatectl status — OL8
+  ansible.builtin.debug:
+    var: timedatectl_status.stdout_lines
+
+- name: Show final chrony.conf — OL8
+  ansible.builtin.command:
+    cmd: cat /etc/chrony.conf
+  register: chrony_conf
+  changed_when: false
+
+- name: Debug final chrony.conf — OL8
+  ansible.builtin.debug:
+    var: chrony_conf.stdout_lines

@@ -1,8 +1,0 @@
----
-# Role: remove_host
-# Remove a host from inventory/DNS
-# TODO: Add your tasks here
-
-- name: Placeholder — remove_host
-  debug:
-    msg: "remove_host role — add tasks in tasks/main.yml"

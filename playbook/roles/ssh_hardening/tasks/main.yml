@@ -1,8 +1,0 @@
----
-# Role: ssh_hardening
-# SSH hardening (sshd_config, keys)
-# TODO: Add your tasks here
-
-- name: Placeholder — ssh_hardening
-  debug:
-    msg: "ssh_hardening role — add tasks in tasks/main.yml"

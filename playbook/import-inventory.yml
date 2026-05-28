@@ -1,3 +1,62 @@
+# ---
+# - name: Import provisioned host into AWX inventory
+#   hosts: localhost
+#   connection: local
+#   gather_facts: false
+#   become: false
+
+#   tasks:
+#     - name: Debug controller env vars
+#       ansible.builtin.debug:
+#         msg:
+#           token_set: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | length > 0 }}"
+#           artifact_vm_name: "{{ artifact_vm_name | default('NOT SET', true) }}"
+#           artifact_target_ip: "{{ artifact_target_ip | default('NOT SET', true) }}"
+#           artifact_target_environment: "{{ artifact_target_environment | default('NOT SET', true) }}"
+
+#     - name: Assert all artifacts were passed from Common Server job
+#       ansible.builtin.assert:
+#         that:
+#           - artifact_vm_name is defined
+#           - artifact_target_ip is defined
+#           - artifact_ssh_user is defined
+#           - artifact_ssh_port is defined
+#           - artifact_target_environment is defined
+#           - artifact_provisioned_at is defined
+#         fail_msg: >
+#           One or more artifact_ vars are missing.
+#           This job must run after JT | Common Server
+#           inside the WF | Common Server workflow.
+
+#     - name: Assert target_environment is valid
+#       ansible.builtin.assert:
+#         that:
+#           - artifact_target_environment in ['Non Production', 'Production']
+#         fail_msg: >
+#           Invalid artifact_target_environment '{{ artifact_target_environment }}'.
+#           Must be 'Non Production' or 'Production'.
+
+#     - name: Register host into AWX inventory
+#       awx.awx.host:
+#         controller_host: "http://192.168.1.240:30802"
+#         name: "{{ artifact_vm_name }}"
+#         inventory: "{{ artifact_target_environment }}"
+#         variables:
+#           ansible_host: "{{ artifact_target_ip }}"
+#           ansible_user: "{{ artifact_ssh_user }}"
+#           ansible_port: "{{ artifact_ssh_port }}"
+#           provisioned_by: "awx"
+#           provisioned_at: "{{ artifact_provisioned_at }}"
+#         state: present
+
+#     - name: Confirm host registration
+#       ansible.builtin.debug:
+#         msg: >
+#           Host '{{ artifact_vm_name }}' successfully registered
+#           into inventory '{{ artifact_target_environment }}'
+#           with IP {{ artifact_target_ip }}
+#           at {{ artifact_provisioned_at }}
+
 ---
 - name: Import provisioned host into AWX inventory
   hosts: localhost
@@ -39,14 +98,18 @@
     - name: Register host into AWX inventory
       awx.awx.host:
         controller_host: "http://192.168.1.240:30802"
+        # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+        validate_certs: false
+
         name: "{{ artifact_vm_name }}"
         inventory: "{{ artifact_target_environment }}"
+
         variables:
           ansible_host: "{{ artifact_target_ip }}"
-          ansible_user: "{{ artifact_ssh_user }}"
-          ansible_port: "{{ artifact_ssh_port }}"
+          ansible_port: "2222"  # If use defualt port"{{ artifact_ssh_port }}"
           provisioned_by: "awx"
           provisioned_at: "{{ artifact_provisioned_at }}"
+
         state: present
 
     - name: Confirm host registration
@@ -56,3 +119,4 @@
           into inventory '{{ artifact_target_environment }}'
           with IP {{ artifact_target_ip }}
           at {{ artifact_provisioned_at }}
+

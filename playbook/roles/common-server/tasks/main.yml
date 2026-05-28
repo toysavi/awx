@@ -1,8 +1,0 @@
----
-# Role: common-server
-# Common server baseline (users, motd, ntp)
-# TODO: Add your tasks here
-
-- name: Placeholder — common-server
-  debug:
-    msg: "common-server role — add tasks in tasks/main.yml"

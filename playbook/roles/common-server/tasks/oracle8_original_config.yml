@@ -1,0 +1,99 @@
+---
+# =============================================================================
+# oracle8_original_config.yml
+# Original configuration backup + local repo setup for Oracle Linux 8
+# =============================================================================
+
+########## Backup original configuration files ##########
+
+- name: Backup original config files — OL8 (skip if backup already exists)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    force: false
+  loop:
+    - { src: /etc/resolv.conf,             dest: /etc/resolv.conf.orig }
+    - { src: /etc/pam.d/password-auth,     dest: /etc/pam.d/password-auth.orig }
+    - { src: /etc/pam.d/system-auth,       dest: /etc/pam.d/system-auth.orig }
+    - { src: /etc/login.defs,              dest: /etc/login.defs.orig }
+    - { src: /etc/security/pwquality.conf, dest: /etc/security/pwquality.conf.orig }
+    - { src: /etc/bashrc,                  dest: /etc/bashrc.orig }
+    - { src: /etc/profile,                 dest: /etc/profile.orig }
+    - { src: /etc/ssh/ssh_config,          dest: /etc/ssh_config.orig }
+    - { src: /etc/ssh/sshd_config,         dest: /etc/ssh/sshd_config.orig }
+    - { src: /etc/pam.d/sshd,             dest: /etc/pam.d/sshd.orig }
+    - { src: /etc/issue,                   dest: /etc/issue.orig }
+    - { src: /etc/issue.net,               dest: /etc/issue.net.orig }
+    - { src: /etc/sysctl.conf,             dest: /etc/sysctl.conf.orig }
+    - { src: /etc/sudoers,                 dest: /etc/sudoer.orig }
+    - { src: /etc/group,                   dest: /etc/group.orig }
+    - { src: /etc/shadow,                  dest: /etc/shadow.orig }
+    - { src: /etc/gshadow,                 dest: /etc/gshadow.orig }
+    - { src: /etc/fstab,                   dest: /etc/fstab.orig }
+  ignore_errors: true
+
+- name: Backup original config directories — OL8 (skip if backup already exists)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    force: false
+  loop:
+    - { src: /etc/pam.d/,      dest: /etc/pam.d.orig }
+    - { src: /etc/ssh/,        dest: /etc/ssh.orig }
+    - { src: /etc/modprobe.d/, dest: /etc/modprobe.d.orig }
+    - { src: /etc/sysctl.d/,   dest: /etc/sysctl.d.orig }
+    - { src: /etc/rsyslog.d/,  dest: /etc/rsyslog.d.orig }
+    - { src: /etc/sudoers.d/,  dest: /etc/sudoers.d.orig }
+    - { src: /etc/security/,   dest: /etc/security.orig }
+  ignore_errors: true
+
+- name: Backup rsyslog.conf — OL8 (ignore if missing)
+  ansible.builtin.copy:
+    src: /etc/rsyslog.conf
+    dest: /etc/rsyslog.conf.orig
+    remote_src: true
+    force: false
+  ignore_errors: true
+
+- name: Backup faillock.conf — OL8 (ignore if missing)
+  ansible.builtin.copy:
+    src: /etc/security/faillock.conf
+    dest: /etc/security/faillock.conf.orig
+    remote_src: true
+    force: false
+  ignore_errors: true
+
+########## Local repo setup — OL8 specific ##########
+
+- name: Find all existing repo files — OL8
+  ansible.builtin.find:
+    paths: /etc/yum.repos.d
+    patterns: "*.repo"
+  register: repo_files
+
+- name: Disable all existing repo files — OL8
+  ansible.builtin.command:
+    cmd: "mv {{ item.path }} {{ item.path }}.disabled"
+  loop: "{{ repo_files.files }}"
+  when: repo_files.files | length > 0
+  changed_when: true
+
+- name: Download local OL8 repo config file
+  ansible.builtin.get_url:
+    url: "http://192.168.211.16/yum/repo_config/local_ol8.repo"
+    dest: /etc/yum.repos.d/local_ol8.repo
+    mode: '0644'
+    force: true
+
+- name: Disable codeready builder repo — OL8
+  ansible.builtin.command:
+    cmd: dnf config-manager --set-disabled ol8_x86_64_codeready_builder
+  changed_when: true
+  failed_when: false
+
+- name: Clean all yum cache — OL8
+  ansible.builtin.command:
+    cmd: yum clean all
+  changed_when: true

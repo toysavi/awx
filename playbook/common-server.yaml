@@ -1,3 +1,118 @@
+# ---
+# # ============================================================
+# # JT | Common Server
+# # Survey vars: vm_name, target_ip, ssh_user, ssh_password,
+# #              ssh_port, target_environment
+# # ============================================================
+
+# # ── Play 1 ── Validate + build in-memory host ──────────────
+# - name: Validate and register dynamic target
+#   hosts: localhost
+#   connection: local
+#   gather_facts: false
+#   become: false
+
+#   tasks:
+#     - name: Validate target_environment
+#       ansible.builtin.assert:
+#         that:
+#           - target_environment in ['Non Production', 'Production']
+#         fail_msg: >
+#           Invalid target_environment '{{ target_environment }}'.
+#           Must be 'Non Production' or 'Production'.
+
+#     - name: Add target into in-memory group provisioning
+#       ansible.builtin.add_host:
+#         name: "{{ vm_name }}"
+#         groups: provisioning
+#         ansible_host: "{{ target_ip }}"
+#         ansible_user: "{{ ssh_user }}"
+#         ansible_password: "{{ ssh_password }}"
+#         ansible_port: "{{ ssh_port | default(22) }}"
+#         ansible_connection: ssh
+#         ansible_python_interpreter: /usr/bin/python3
+#         ansible_ssh_common_args: >-
+#           -o StrictHostKeyChecking=no
+#           -o UserKnownHostsFile=/dev/null
+
+#     - name: Cache survey vars on localhost scope
+#       ansible.builtin.set_fact:
+#         _vm_name:              "{{ vm_name }}"
+#         _target_ip:            "{{ target_ip }}"
+#         _ssh_user:             "{{ ssh_user }}"
+#         _ssh_port:             "{{ ssh_port | default(22) }}"
+#         _target_environment:   "{{ target_environment }}"
+
+
+# # ── Play 2 ── Wait for SSH ─────────────────────────────────
+# - name: Wait for target to become reachable
+#   hosts: provisioning
+#   gather_facts: false
+#   become: false
+
+#   tasks:
+#     - name: Wait for SSH port to open
+#       ansible.builtin.wait_for_connection:
+#         timeout: 120
+#         sleep: 5
+
+#     - name: Wait for package manager lock to release
+#       ansible.builtin.raw: >
+#         timeout 60 bash -c
+#         'while fuser /var/lib/rpm/.rpm.lock
+#         /var/lib/dnf/yumdb 2>/dev/null;
+#         do sleep 3; done'
+#       changed_when: false
+#       failed_when: false
+
+#     - name: Gather facts
+#       ansible.builtin.setup:
+#         gather_timeout: 30
+#         gather_subset:
+#           - min
+#           - '!facter'
+#           - '!ohai'
+
+
+# # ── Play 3 ── Apply common role + hardening ────────────────
+# - name: Bootstrap and harden Linux server
+#   hosts: provisioning
+#   become: true
+#   gather_facts: false
+
+#   roles:
+#     - common
+
+#   post_tasks:
+#     - name: Collect service facts
+#       ansible.builtin.service_facts:
+
+#     - name: Assert sshd is active
+#       ansible.builtin.assert:
+#         that: ansible_facts.services['sshd.service'].state == 'running'
+#         fail_msg: "sshd is not running on {{ inventory_hostname }}"
+
+
+# # ── Play 4 ── Write artifact for Import Inventory job ──────
+# - name: Publish host artifact for Import Inventory job
+#   hosts: localhost
+#   connection: local
+#   gather_facts: false
+#   become: false
+
+#   tasks:
+#     - name: Set workflow artifact via set_stats
+#       ansible.builtin.set_stats:
+#         data:
+#           artifact_vm_name:            "{{ _vm_name }}"
+#           artifact_target_ip:          "{{ _target_ip }}"
+#           artifact_ssh_user:           "{{ _ssh_user }}"
+#           artifact_ssh_port:           "{{ _ssh_port }}"
+#           artifact_target_environment: "{{ _target_environment }}"
+#           artifact_provisioned_at:     "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+#         aggregate: false
+#         per_host: false
+
 ---
 # ============================================================
 # JT | Common Server
@@ -81,7 +196,7 @@
   gather_facts: false
 
   roles:
-    - common
+    - common-server
 
   post_tasks:
     - name: Collect service facts

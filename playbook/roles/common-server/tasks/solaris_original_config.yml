@@ -1,0 +1,54 @@
+---
+########## Backup original configuration files (Solaris) ##########
+
+- name: Backup original config files (skip if backup already exists)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    force: false
+  become: true
+  loop:
+    - { src: /etc/networks,                     dest: /etc/networks.orig }
+    - { src: /etc/ssh/sshd_config,              dest: /etc/ssh/sshd_config.orig }
+    - { src: /etc/security/audit_event,         dest: /etc/security/audit_event.orig }
+    - { src: /etc/security/policy.conf,         dest: /etc/security/policy.conf.orig }
+    - { src: /etc/pam.d/rsh,                    dest: /etc/pam.d/rsh.orig }
+    - { src: /etc/pam.d/rlogin,                 dest: /etc/pam.d/rlogin.orig }
+    - { src: /etc/default/passwd,               dest: /etc/default/passwd.orig }
+    - { src: /etc/default/login,                dest: /etc/default/login.orig }
+    - { src: /etc/pam.conf,                     dest: /etc/pam.conf.orig }
+  ignore_errors: true
+
+- name: Backup original config directories (skip if backup already exists)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    force: false
+  become: true
+  loop:
+    - { src: /etc/security/,                    dest: /etc/security.orig }
+    - { src: /etc/default/,                     dest: /etc/default.orig }
+    - { src: /etc/inet/,                        dest: /etc/inet.orig }
+    - { src: /var/share/cores/,                 dest: /var/share/cores.orig }
+    - { src: /var/spool/cron/crontabs/,         dest: /var/spool/cron/crontabs.orig }
+  ignore_errors: true
+
+- name: Backup keyserv (ignore if missing)
+  ansible.builtin.copy:
+    src: /etc/default/keyserv
+    dest: /etc/default/keyserv.orig
+    remote_src: true
+    force: false
+  become: true
+  ignore_errors: true
+
+- name: Backup proftpd.conf (ignore if missing)
+  ansible.builtin.copy:
+    src: /etc/proftpd.conf
+    dest: /etc/proftpd.conf.orig
+    remote_src: true
+    force: false
+  become: true
+  ignore_errors: true

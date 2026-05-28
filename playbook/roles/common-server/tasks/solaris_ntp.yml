@@ -1,0 +1,117 @@
+---
+# =============================================================================
+# solaris_ntp.yml
+# NTP configuration for Solaris
+# Chrony not available — uses native ntpd service
+# =============================================================================
+
+- name: Backup ntp.conf — Solaris (skip if backup exists)
+  ansible.builtin.copy:
+    src: /etc/inet/ntp.conf
+    dest: /etc/inet/ntp.conf.orig
+    remote_src: true
+    force: false
+  ignore_errors: true
+
+# ── Disable all default server / pool lines ─────────────────
+
+- name: Comment out all existing server lines — Solaris
+  ansible.builtin.replace:
+    path: /etc/inet/ntp.conf
+    regexp: '^(server (?!192\.168\.).*)'
+    replace: '# \1'
+
+- name: Comment out all existing pool lines — Solaris
+  ansible.builtin.replace:
+    path: /etc/inet/ntp.conf
+    regexp: '^(pool .*)'
+    replace: '# \1'
+
+- name: Comment out all existing peer lines — Solaris
+  ansible.builtin.replace:
+    path: /etc/inet/ntp.conf
+    regexp: '^(peer .*)'
+    replace: '# \1'
+
+# ── Add internal NTP servers ────────────────────────────────
+
+- name: Add primary NTP server — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/inet/ntp.conf
+    line: 'server 192.168.1.5 iburst'
+    state: present
+
+- name: Add secondary NTP server — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/inet/ntp.conf
+    insertafter: '^server 192\.168\.1\.5 iburst'
+    line: 'server 192.168.1.6 iburst'
+
+# ── Timezone ────────────────────────────────────────────────
+
+- name: Set timezone in /etc/default/init — Solaris
+  ansible.builtin.lineinfile:
+    path: /etc/default/init
+    regexp: '^TZ='
+    line: 'TZ=Asia/Phnom_Penh'
+
+# ── Enable and restart NTP ──────────────────────────────────
+
+- name: Enable NTP service — Solaris
+  ansible.builtin.command:
+    cmd: svcadm enable ntp
+  changed_when: true
+  failed_when: false
+
+- name: Restart NTP service — Solaris
+  ansible.builtin.command:
+    cmd: svcadm restart ntp
+  changed_when: true
+
+- name: Wait for NTP to sync — Solaris
+  ansible.builtin.pause:
+    seconds: 5
+
+# ── Verify ──────────────────────────────────────────────────
+
+- name: Show NTP service status — Solaris
+  ansible.builtin.command:
+    cmd: svcs ntp
+  register: ntp_svcs
+  changed_when: false
+  failed_when: false
+
+- name: Debug NTP service status — Solaris
+  ansible.builtin.debug:
+    var: ntp_svcs.stdout_lines
+
+- name: Show NTP peers — Solaris
+  ansible.builtin.command:
+    cmd: ntpq -p
+  register: ntp_peers
+  changed_when: false
+  failed_when: false
+
+- name: Debug NTP peers — Solaris
+  ansible.builtin.debug:
+    var: ntp_peers.stdout_lines
+
+- name: Show current date and timezone — Solaris
+  ansible.builtin.command:
+    cmd: date
+  register: current_date
+  changed_when: false
+
+- name: Debug current date — Solaris
+  ansible.builtin.debug:
+    var: current_date.stdout_lines
+
+- name: Show final ntp.conf — Solaris
+  ansible.builtin.command:
+    cmd: cat /etc/inet/ntp.conf
+  register: ntp_conf
+  changed_when: false
+
+- name: Debug final ntp.conf — Solaris
+  ansible.builtin.debug:
+    var: ntp_conf.stdout_lines

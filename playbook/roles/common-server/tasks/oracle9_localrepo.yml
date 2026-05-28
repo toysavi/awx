@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# oracle_original_config.yml
+# Configure local YUM/DNF repository for Oracle Linux 9
+# Disables all existing repos and sets up internal local repo
+# =============================================================================
+
+- name: Find all existing repo files
+  ansible.builtin.find:
+    paths: /etc/yum.repos.d
+    patterns: "*.repo"
+  register: repo_files
+
+- name: Disable all existing repo files by renaming to .disabled
+  ansible.builtin.command:
+    cmd: "mv {{ item.path }} {{ item.path }}.disabled"
+  loop: "{{ repo_files.files }}"
+  when: repo_files.files | length > 0
+  changed_when: true
+
+- name: Download local repo config file
+  ansible.builtin.get_url:
+    url: "http://svr-drpacoral01.phillipbank.local/yum/repo_config/local_ol9.repo"
+    dest: /etc/yum.repos.d/local_ol9.repo
+    mode: '0644'
+    force: true
+
+- name: Disable codeready builder repo
+  ansible.builtin.command:
+    cmd: dnf config-manager --set-disabled ol9_x86_64_codeready_builder
+  changed_when: true
+  failed_when: false      # non-fatal if repo does not exist
+
+- name: Clean all yum cache
+  ansible.builtin.command:
+    cmd: yum clean all
+  changed_when: true

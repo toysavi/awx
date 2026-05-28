@@ -1,0 +1,72 @@
+---
+# =============================================================================
+# COMMON SERVER VARS
+# =============================================================================
+sv_common_enable: true
+ntp_service: ntp
+ntp_config_file: /etc/inet/ntp.conf
+timezone: Asia/Phnom_Penh
+
+# =============================================================================
+# OS HARDENING VARS (Solaris)
+# =============================================================================
+os_packages_pam_ccreds: 'pam_ccreds'
+os_nologin_shell_path: '/usr/bin/false'
+os_shadow_perms:
+  owner: root
+  group: sys
+  mode: '0400'
+os_passwd_perms:
+  owner: root
+  group: sys
+  mode: '0644'
+os_env_umask: '022'
+os_auth_uid_min: 100
+os_auth_uid_max: 60000
+os_auth_gid_min: 100
+os_auth_gid_max: 60000
+os_auth_sys_uid_min: 0
+os_auth_sys_uid_max: 99
+os_auth_sys_gid_min: 0
+os_auth_sys_gid_max: 99
+os_auth_sub_uid_min: 100000
+os_auth_sub_uid_max: 600100000
+os_auth_sub_uid_count: 65536
+os_auth_sub_gid_min: 100000
+os_auth_sub_gid_max: 600100000
+os_auth_sub_gid_count: 65536
+os_mnt_boot_dir_mode: '0755'
+os_mnt_boot_group: 'sys'
+os_mnt_boot_owner: 'root'
+os_mnt_dev_dir_mode: '0755'
+os_mnt_dev_group: 'sys'
+os_mnt_dev_owner: 'root'
+os_mnt_dev_shm_dir_mode: '1777'
+os_mnt_dev_shm_group: 'sys'
+os_mnt_dev_shm_owner: 'root'
+os_mnt_home_dir_mode: '0755'
+os_mnt_home_group: 'root'
+os_mnt_home_owner: 'root'
+os_mnt_run_dir_mode: '0755'
+os_mnt_run_group: 'sys'
+os_mnt_run_owner: 'root'
+os_mnt_tmp_dir_mode: '1777'
+os_mnt_tmp_group: 'root'
+os_mnt_tmp_owner: 'root'
+os_mnt_var_dir_mode: '0755'
+os_mnt_var_group: 'sys'
+os_mnt_var_owner: 'root'
+os_mnt_var_log_dir_mode: '0755'
+os_mnt_var_log_group: 'sys'
+os_mnt_var_log_owner: 'root'
+os_mnt_var_log_audit_dir_mode: '0750'
+os_mnt_var_log_audit_group: 'root'
+os_mnt_var_log_audit_owner: 'root'
+os_mnt_var_tmp_dir_mode: '1777'
+os_mnt_var_tmp_group: 'root'
+os_mnt_var_tmp_owner: 'root'
+os_useradd_mail_dir: /var/mail
+modprobe_package: ''        # not applicable on Solaris
+auditd_package: 'BSMauditing'
+sudo_package: 'sudo'
+hidepid_option: '0'         # not supported on Solaris kernel

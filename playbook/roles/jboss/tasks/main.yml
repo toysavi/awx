@@ -1,8 +1,0 @@
----
-# Role: jboss
-# Install and configure JBoss/WildFly
-# TODO: Add your tasks here
-
-- name: Placeholder — jboss
-  debug:
-    msg: "jboss role — add tasks in tasks/main.yml"

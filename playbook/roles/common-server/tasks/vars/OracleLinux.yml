@@ -1,0 +1,74 @@
+---
+# =============================================================================
+# COMMON SERVER VARS
+# =============================================================================
+sv_common_enable: true
+ntp_service: chronyd
+ntp_config_file: /etc/chrony.conf
+timezone: Asia/Phnom_Penh
+
+# =============================================================================
+# OS HARDENING VARS (RHEL/Oracle compatible)
+# =============================================================================
+os_packages_pam_ccreds: pam_ccreds
+os_nologin_shell_path: /sbin/nologin
+os_shadow_perms:
+  owner: root
+  group: root
+  mode: "0000"
+os_passwd_perms:
+  owner: root
+  group: root
+  mode: "0644"
+os_env_umask: "077"
+os_auth_uid_min: 1000
+os_auth_uid_max: 60000
+os_auth_gid_min: 1000
+os_auth_gid_max: 60000
+os_auth_sys_uid_min: 201
+os_auth_sys_uid_max: 999
+os_auth_sys_gid_min: 201
+os_auth_sys_gid_max: 999
+os_auth_sub_uid_min: 100000
+os_auth_sub_uid_max: 600100000
+os_auth_sub_uid_count: 65536
+os_auth_sub_gid_min: 100000
+os_auth_sub_gid_max: 600100000
+os_auth_sub_gid_count: 65536
+os_auth_pam_sssd_enable: true
+os_mnt_boot_dir_mode: '0700'
+os_mnt_boot_group: 'root'
+os_mnt_boot_owner: 'root'
+os_mnt_dev_dir_mode: '0755'
+os_mnt_dev_group: 'root'
+os_mnt_dev_owner: 'root'
+os_mnt_dev_shm_dir_mode: '1777'
+os_mnt_dev_shm_group: 'root'
+os_mnt_dev_shm_owner: 'root'
+os_mnt_home_dir_mode: '0755'
+os_mnt_home_group: 'root'
+os_mnt_home_owner: 'root'
+os_mnt_run_dir_mode: '0755'
+os_mnt_run_group: 'root'
+os_mnt_run_owner: 'root'
+os_mnt_tmp_dir_mode: '1777'
+os_mnt_tmp_group: 'root'
+os_mnt_tmp_owner: 'root'
+os_mnt_var_dir_mode: '0755'
+os_mnt_var_group: 'root'
+os_mnt_var_owner: 'root'
+os_mnt_var_log_dir_mode: '0755'
+os_mnt_var_log_group: 'root'
+os_mnt_var_log_owner: 'root'
+os_mnt_var_log_audit_dir_mode: '0700'
+os_mnt_var_log_audit_group: 'root'
+os_mnt_var_log_audit_owner: 'root'
+os_mnt_var_tmp_dir_mode: '1777'
+os_mnt_var_tmp_group: 'root'
+os_mnt_var_tmp_owner: 'root'
+os_useradd_mail_dir: /var/spool/mail
+os_useradd_create_home: true
+modprobe_package: module-init-tools
+auditd_package: audit
+sudo_package: sudo
+hidepid_option: "2"

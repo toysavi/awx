@@ -1,8 +1,0 @@
----
-# Role: nginx
-# Install and configure Nginx
-# TODO: Add your tasks here
-
-- name: Placeholder — nginx
-  debug:
-    msg: "nginx role — add tasks in tasks/main.yml"

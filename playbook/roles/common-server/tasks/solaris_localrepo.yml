@@ -1,0 +1,103 @@
+---
+# =============================================================================
+# solaris_localrepo.yml
+# Local IPS publisher setup for Solaris ONLY
+# =============================================================================
+
+# ── Backup current publisher config ────────────────────────────────────────
+
+- name: Create backup directory for publisher config
+  ansible.builtin.file:
+    path: /etc/pkg/backup
+    state: directory
+    mode: '0755'
+
+- name: Export current publisher list to backup file (skip if backup exists)
+  ansible.builtin.shell:
+    cmd: pkg publisher > /etc/pkg/backup/publisher.orig
+    creates: /etc/pkg/backup/publisher.orig   # idempotent — only runs if file missing
+
+- name: Backup publisher config directory (skip if backup exists)
+  ansible.builtin.copy:
+    src: /etc/pkg/
+    dest: /etc/pkg.orig/
+    remote_src: true
+    force: false                              # skip if backup already exists
+  ignore_errors: true
+
+- name: Show backup content
+  ansible.builtin.command:
+    cmd: cat /etc/pkg/backup/publisher.orig
+  register: backup_content
+  changed_when: false
+
+- name: Debug backup publisher list
+  ansible.builtin.debug:
+    var: backup_content.stdout_lines
+
+# ── Show current state before changes ──────────────────────────────────────
+
+- name: Show current IPS publishers before changes
+  ansible.builtin.command:
+    cmd: pkg publisher
+  register: publishers_before
+  changed_when: false
+  failed_when: false
+
+- name: Debug current publishers
+  ansible.builtin.debug:
+    var: publishers_before.stdout_lines
+
+# ── Configure local publisher ───────────────────────────────────────────────
+
+- name: Unset existing solaris publisher
+  ansible.builtin.command:
+    cmd: pkg unset-publisher solaris
+  register: unset_result
+  changed_when: unset_result.rc == 0
+  failed_when: false
+
+- name: Debug unset publisher result
+  ansible.builtin.debug:
+    var: unset_result.stdout_lines
+  when: unset_result.stdout_lines is defined
+
+- name: Set local Solaris IPS publisher
+  ansible.builtin.command:
+    cmd: >
+      pkg set-publisher
+      -G '*'
+      -M '*'
+      -g http://192.168.2.33:8003/
+      solaris
+  register: set_publisher_result
+  changed_when: set_publisher_result.rc == 0
+  failed_when: set_publisher_result.rc != 0
+
+- name: Debug set publisher result
+  ansible.builtin.debug:
+    var: set_publisher_result.stdout_lines
+
+# ── Verify after changes ────────────────────────────────────────────────────
+
+- name: Show current IPS publishers after changes
+  ansible.builtin.command:
+    cmd: pkg publisher
+  register: publishers_after
+  changed_when: false
+  failed_when: false
+
+- name: Debug publishers after changes
+  ansible.builtin.debug:
+    var: publishers_after.stdout_lines
+
+- name: List all available packages including entire
+  ansible.builtin.command:
+    cmd: pkg list -af entire
+  register: pkg_list_result
+  changed_when: false
+  failed_when: false
+
+- name: Debug available packages
+  ansible.builtin.debug:
+    var: pkg_list_result.stdout_lines
