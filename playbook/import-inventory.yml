@@ -1,8 +1,9 @@
 ---
 # ============================================================
 # JT | Import Inventory
-# No survey — reads artifact_* vars from Common Server job
-# AWX injects them automatically as extra_vars
+# Reads artifact_* vars from JT | Common Server via set_stats
+# AWX injects CONTROLLER_HOST + CONTROLLER_OAUTH_TOKEN via
+# credential injector configured on the job template
 # ============================================================
 
 - name: Import provisioned host into AWX inventory
@@ -12,7 +13,16 @@
   become: false
 
   tasks:
-    - name: Assert all artifacts were passed
+    - name: Debug controller env vars
+      ansible.builtin.debug:
+        msg:
+          controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default('NOT SET', true) }}"
+          token_set: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | length > 0 }}"
+          artifact_vm_name: "{{ artifact_vm_name | default('NOT SET', true) }}"
+          artifact_target_ip: "{{ artifact_target_ip | default('NOT SET', true) }}"
+          artifact_target_environment: "{{ artifact_target_environment | default('NOT SET', true) }}"
+
+    - name: Assert all artifacts were passed from Common Server job
       ansible.builtin.assert:
         that:
           - artifact_vm_name is defined
@@ -26,28 +36,38 @@
           This job must run after JT | Common Server
           inside the WF | Common Server workflow.
 
+    - name: Assert target_environment is valid
+      ansible.builtin.assert:
+        that:
+          - artifact_target_environment in ['Non-Productions', 'Productions']
+        fail_msg: >
+          Invalid artifact_target_environment '{{ artifact_target_environment }}'.
+          Must be 'Non-Productions' or 'Productions'.
+
     - name: Register host into AWX inventory
       awx.awx.host:
-        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default(controller_host, true) }}"
         controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+        validate_certs: false
         name: "{{ artifact_vm_name }}"
         inventory: "{{ artifact_target_environment }}"
         variables:
-          ansible_host:              "{{ artifact_target_ip }}"
-          ansible_user:              "{{ artifact_ssh_user }}"
-          ansible_port:              "{{ artifact_ssh_port | default(22) }}"
+          ansible_host: "{{ artifact_target_ip }}"
+          ansible_user: "{{ artifact_ssh_user }}"
+          ansible_port: "{{ artifact_ssh_port | default(22) }}"
           ansible_python_interpreter: /usr/bin/python3
           ansible_ssh_common_args: >-
             -o StrictHostKeyChecking=no
             -o UserKnownHostsFile=/dev/null
-          provisioned_by:   "awx"
-          provisioned_at:   "{{ artifact_provisioned_at }}"
+          provisioned_by: "awx"
+          provisioned_at: "{{ artifact_provisioned_at }}"
         state: present
       become: false
 
-    - name: Confirm registration
+    - name: Confirm host registration
       ansible.builtin.debug:
         msg: >
-          Host '{{ artifact_vm_name }}' registered into
-          inventory '{{ artifact_target_environment }}'
+          Host '{{ artifact_vm_name }}' successfully registered
+          into inventory '{{ artifact_target_environment }}'
+          with IP {{ artifact_target_ip }}
           at {{ artifact_provisioned_at }}
