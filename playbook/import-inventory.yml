@@ -99,10 +99,10 @@
     - name: Assert target_environment is valid
       ansible.builtin.assert:
         that:
-          - artifact_target_environment in ['Non-Productions', 'Productions']
+          - artifact_target_environment in ['Non Productions', 'Productions']
         fail_msg: >
           Invalid artifact_target_environment '{{ artifact_target_environment }}'.
-          Must be 'Non-Productions' or 'Productions'.
+          Must be 'Non Productions' or 'Productions'.
 
     - name: Register host into AWX inventory
       awx.awx.host:
