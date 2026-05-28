@@ -7,7 +7,7 @@
 
     - name: Add target server dynamically
       add_host:
-        name: "{{ vm_name }}"
+        name: runtime_target
         ansible_host: "{{ target_ip }}"
         ansible_user: "{{ ssh_user }}"
         ansible_password: "{{ ssh_password }}"
@@ -16,7 +16,7 @@
 
 
 - name: Bootstrap Linux Server
-  hosts: "{{ vm_name }}"
+  hosts: runtime_target
   become: true
   gather_facts: true
 
