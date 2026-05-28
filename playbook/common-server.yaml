@@ -16,10 +16,10 @@
     - name: Validate target_environment
       ansible.builtin.assert:
         that:
-          - target_environment in ['Non Productions', 'Productions']
+          - target_environment in ['Non Production', 'Production']
         fail_msg: >
           Invalid target_environment '{{ target_environment }}'.
-          Must be 'Non Productions' or 'Productions'.
+          Must be 'Non Production' or 'Production'.
 
     - name: Add target into in-memory group provisioning
       ansible.builtin.add_host:
