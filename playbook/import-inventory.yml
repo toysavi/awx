@@ -1,0 +1,53 @@
+---
+# ============================================================
+# JT | Import Inventory
+# No survey — reads artifact_* vars from Common Server job
+# AWX injects them automatically as extra_vars
+# ============================================================
+
+- name: Import provisioned host into AWX inventory
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Assert all artifacts were passed
+      ansible.builtin.assert:
+        that:
+          - artifact_vm_name is defined
+          - artifact_target_ip is defined
+          - artifact_ssh_user is defined
+          - artifact_ssh_port is defined
+          - artifact_target_environment is defined
+          - artifact_provisioned_at is defined
+        fail_msg: >
+          One or more artifact_ vars are missing.
+          This job must run after JT | Common Server
+          inside the WF | Common Server workflow.
+
+    - name: Register host into AWX inventory
+      awx.awx.host:
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+        name: "{{ artifact_vm_name }}"
+        inventory: "{{ artifact_target_environment }}"
+        variables:
+          ansible_host:              "{{ artifact_target_ip }}"
+          ansible_user:              "{{ artifact_ssh_user }}"
+          ansible_port:              "{{ artifact_ssh_port | default(22) }}"
+          ansible_python_interpreter: /usr/bin/python3
+          ansible_ssh_common_args: >-
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+          provisioned_by:   "awx"
+          provisioned_at:   "{{ artifact_provisioned_at }}"
+        state: present
+      become: false
+
+    - name: Confirm registration
+      ansible.builtin.debug:
+        msg: >
+          Host '{{ artifact_vm_name }}' registered into
+          inventory '{{ artifact_target_environment }}'
+          at {{ artifact_provisioned_at }}
