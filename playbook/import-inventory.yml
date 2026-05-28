@@ -44,23 +44,18 @@
 
     - name: Register host into AWX inventory
       awx.awx.host:
-        controller_host: "{{ awx_host }}"               # ← uses renamed var
-        controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token | default(''), true) }}"
-        validate_certs: "{{ awx_validate_certs }}"
-        name: "{{ artifact_vm_name }}"
-        inventory: "{{ artifact_target_environment }}"
-        variables:
-          ansible_host: "{{ artifact_target_ip }}"
-          ansible_user: "{{ artifact_ssh_user }}"
-          ansible_port: "{{ artifact_ssh_port | default(22) }}"
-          ansible_python_interpreter: /usr/bin/python3
-          ansible_ssh_common_args: >-
-            -o StrictHostKeyChecking=no
-            -o UserKnownHostsFile=/dev/null
-          provisioned_by: "awx"
-          provisioned_at: "{{ artifact_provisioned_at }}"
-        state: present
-      become: false
+            controller_host: "{{ awx_host }}"
+            controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token, true) }}"
+            validate_certs: "{{ awx_validate_certs }}"
+            name: "{{ artifact_vm_name }}"
+            inventory: "{{ artifact_target_environment }}"
+            variables:
+              ansible_host: "{{ artifact_target_ip }}"
+              ansible_port: 2222
+              provisioned_by: "awx"
+              provisioned_at: "{{ artifact_provisioned_at }}"
+            state: present
+            become: false
 
     - name: Confirm host registration
       ansible.builtin.debug:
