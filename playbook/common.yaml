@@ -75,32 +75,30 @@
 
 # ============================================================
 # Play 4 — Persist host into AWX inventory
-# FIX 1: reads _vm_name etc. set_fact'd in Play 1 (localhost scope)
-# FIX 2: uses lookup('pipe') instead of ansible_date_time
-# FIX 3: no delegate_to / run_once — play-level hosts: localhost
-#         already guarantees one execution on the controller
 # ============================================================
 - name: Register host into AWX inventory
   hosts: localhost
   connection: local
   gather_facts: false
+  become: false          # ← CRITICAL: explicitly cancel Play 3's become: true
+                         #   AWX execution environments have no sudo binary
+                         #   on the controller; without this it inherits become
+                         #   from the previous play context in some EE builds
 
   tasks:
     - name: Add host to AWX inventory
       awx.awx.host:
         controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
         controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
-
-        name: "{{ _vm_name }}"                              # FIX 1: scoped var
+        name: "{{ _vm_name }}"
         inventory: "{{ _environment }}"
         description: "Provisioned by AWX job {{ lookup('env', 'AWX_JOB_ID') }}"
-
         variables:
           ansible_host: "{{ _target_ip }}"
           ansible_user: "{{ _ssh_user }}"
           ansible_port: "{{ _ssh_port }}"
           provisioned_by: "awx"
-          provisioned_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"  # FIX 2
-
+          provisioned_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
         state: present
-      # FIX 3: delegate_to and run_once removed entirely
+      become: false       # ← belt-and-suspenders: also disable at task level
+                          #   in case the EE or role sets become globally
