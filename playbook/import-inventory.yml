@@ -1,22 +1,19 @@
 ---
-# ============================================================
-# JT | Import Inventory
-# Reads artifact_* vars from JT | Common Server via set_stats
-# AWX injects CONTROLLER_HOST + CONTROLLER_OAUTH_TOKEN via
-# credential injector configured on the job template
-# ============================================================
-
 - name: Import provisioned host into AWX inventory
   hosts: localhost
   connection: local
   gather_facts: false
   become: false
 
+  vars:
+    awx_host: "http:192.168.1.240:30802"    # ← renamed to avoid collision
+    awx_validate_certs: false
+
   tasks:
     - name: Debug controller env vars
       ansible.builtin.debug:
         msg:
-          controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default('NOT SET', true) }}"
+          awx_host: "{{ awx_host }}"
           token_set: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | length > 0 }}"
           artifact_vm_name: "{{ artifact_vm_name | default('NOT SET', true) }}"
           artifact_target_ip: "{{ artifact_target_ip | default('NOT SET', true) }}"
@@ -46,9 +43,9 @@
 
     - name: Register host into AWX inventory
       awx.awx.host:
-        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default(controller_host, true) }}"
-        controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
-        validate_certs: false
+        controller_host: "{{ awx_host }}"               # ← uses renamed var
+        controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token | default(''), true) }}"
+        validate_certs: "{{ awx_validate_certs }}"
         name: "{{ artifact_vm_name }}"
         inventory: "{{ artifact_target_environment }}"
         variables:
