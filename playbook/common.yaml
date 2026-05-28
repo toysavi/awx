@@ -1,13 +1,22 @@
 ---
 # ============================================================
-# Play 1 — Build in-memory host AND hoist vars to localhost
+# Play 1 — Validate, build in-memory host, cache vars
 # ============================================================
 - name: Register dynamic target into in-memory inventory
   hosts: localhost
   connection: local
   gather_facts: false
+  become: false
 
   tasks:
+    - name: Validate target_environment is a known inventory
+      ansible.builtin.assert:
+        that:
+          - target_environment in ['Non-Productions', 'Productions']
+        fail_msg: >
+          Invalid target_environment '{{ target_environment }}'.
+          Must be exactly 'Non-Productions' or 'Productions'.
+
     - name: Add target into in-memory group 'provisioning'
       ansible.builtin.add_host:
         name: "{{ vm_name }}"
@@ -17,30 +26,30 @@
         ansible_password: "{{ ssh_password }}"
         ansible_port: "{{ ssh_port | default(22) }}"
         ansible_connection: ssh
+        ansible_python_interpreter: /usr/bin/python3
         ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        target_environment: "{{ target_environment }}"
         target_ip: "{{ target_ip }}"
         ssh_user: "{{ ssh_user }}"
         ssh_port: "{{ ssh_port | default(22) }}"
         vm_name: "{{ vm_name }}"
-        environment: "{{ environment | default('Non-Production') }}"
 
-    # FIX 1 — hoist survey vars onto localhost so Play 4 can read them
-    # without crossing into the provisioning group's hostvars scope
     - name: Cache survey vars on localhost for Play 4
       ansible.builtin.set_fact:
         _vm_name: "{{ vm_name }}"
         _target_ip: "{{ target_ip }}"
         _ssh_user: "{{ ssh_user }}"
         _ssh_port: "{{ ssh_port | default(22) }}"
-        _environment: "{{ environment | default('Non-Production') }}"
+        _target_environment: "{{ target_environment }}"
 
 
 # ============================================================
-# Play 2 — Wait for SSH, gather facts
+# Play 2 — Wait for SSH to be ready, then gather facts
 # ============================================================
 - name: Wait for target to become reachable
   hosts: provisioning
   gather_facts: false
+  become: false
 
   tasks:
     - name: Wait for SSH port to open
@@ -53,7 +62,7 @@
 
 
 # ============================================================
-# Play 3 — Bootstrap: apply roles
+# Play 3 — Bootstrap: apply common role
 # ============================================================
 - name: Bootstrap Linux server
   hosts: provisioning
@@ -75,15 +84,15 @@
 
 # ============================================================
 # Play 4 — Persist host into AWX inventory
+# - become: false  → EE container has no sudo; must be explicit
+# - reads _vars    → set_fact'd in Play 1 on localhost scope
+# - lookup('pipe') → no gather_facts so ansible_date_time unavailable
 # ============================================================
 - name: Register host into AWX inventory
   hosts: localhost
   connection: local
   gather_facts: false
-  become: false          # ← CRITICAL: explicitly cancel Play 3's become: true
-                         #   AWX execution environments have no sudo binary
-                         #   on the controller; without this it inherits become
-                         #   from the previous play context in some EE builds
+  become: false
 
   tasks:
     - name: Add host to AWX inventory
@@ -91,14 +100,14 @@
         controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
         controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
         name: "{{ _vm_name }}"
-        inventory: "{{ _environment }}"
+        inventory: "{{ _target_environment }}"
         description: "Provisioned by AWX job {{ lookup('env', 'AWX_JOB_ID') }}"
         variables:
           ansible_host: "{{ _target_ip }}"
           ansible_user: "{{ _ssh_user }}"
           ansible_port: "{{ _ssh_port }}"
+          ansible_python_interpreter: /usr/bin/python3
           provisioned_by: "awx"
           provisioned_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
         state: present
-      become: false       # ← belt-and-suspenders: also disable at task level
-                          #   in case the EE or role sets become globally
+      become: false
