@@ -57,8 +57,31 @@
         timeout: 120
         sleep: 5
 
+    - name: Wait for cloud-init to finish
+      ansible.builtin.raw: >
+        timeout 60 bash -c
+        'until [ ! -f /run/cloud-init/enabled ] ||
+        systemctl is-active cloud-init-local.service cloud-init.service
+        cloud-config.service cloud-final.service 2>/dev/null | grep -q "^inactive$";
+        do sleep 3; done'
+      changed_when: false
+      failed_when: false
+
+    - name: Wait for package manager lock to release
+      ansible.builtin.raw: >
+        timeout 60 bash -c
+        'while fuser /var/lib/rpm/.rpm.lock /var/lib/dnf/yumdb 2>/dev/null;
+        do sleep 3; done'
+      changed_when: false
+      failed_when: false
+
     - name: Gather facts now that host is reachable
       ansible.builtin.setup:
+        gather_timeout: 30          # fail fast instead of hanging forever
+        gather_subset:
+          - min                     # os, hardware basics — skip slow package facts
+          - '!facter'               # skip facter if installed (very slow)
+          - '!ohai'                 # skip ohai if installed
 
 
 # ============================================================
