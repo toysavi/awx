@@ -90,40 +90,45 @@
         fail_msg: >
           Invalid artifact_target_environment '{{ artifact_target_environment }}'.
 
-    # - name: Register host into AWX inventory
+
+    # - name: Register each host into AWX inventory
     #   awx.awx.host:
     #     controller_host: "http://192.168.1.240:30802"
-    #     # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+    #     # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token, true) }}"
     #     validate_certs: false
-
-    #     name: "{{ artifact_vm_name }}"
+    #     name: "{{ item.name }}"
     #     inventory: "{{ artifact_target_environment }}"
-
     #     variables:
-    #       ansible_host: "{{ artifact_target_ip }}"
-    #       ansible_port: "2222"  # If use defualt port"{{ artifact_ssh_port }}"
+    #       ansible_host: "{{ item.ip }}"
+    #       ansible_user: "{{ artifact_ssh_user }}"
+    #       ansible_port: 2222
     #       provisioned_by: "awx"
     #       provisioned_at: "{{ artifact_provisioned_at }}"
-
     #     state: present
+    #   loop: "{{ artifact_target_hosts }}"
+    #   become: false
 
     - name: Register each host into AWX inventory
       awx.awx.host:
         controller_host: "http://192.168.1.240:30802"
-        # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token, true) }}"
+        controller_username: admin
+        controller_password: "{{ awx_password }}"
         validate_certs: false
+
         name: "{{ item.name }}"
         inventory: "{{ artifact_target_environment }}"
+        organization: "Default"
+
         variables:
           ansible_host: "{{ item.ip }}"
           ansible_user: "{{ artifact_ssh_user }}"
           ansible_port: 2222
           provisioned_by: "awx"
           provisioned_at: "{{ artifact_provisioned_at }}"
-        state: present
-      loop: "{{ artifact_target_hosts }}"
-      become: false
 
+        state: present
+
+      loop: "{{ artifact_target_hosts }}"
     - name: Confirm all hosts registered
       ansible.builtin.debug:
         msg: >
