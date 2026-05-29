@@ -111,7 +111,7 @@
       awx.awx.host:
         controller_host: "http://192.168.1.240:30802"
         # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token, true) }}"
-        validate_certs: "{{ awx_validate_certs }}"
+        validate_certs: false
         name: "{{ item.name }}"
         inventory: "{{ artifact_target_environment }}"
         variables:
