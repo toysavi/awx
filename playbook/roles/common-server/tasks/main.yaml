@@ -248,25 +248,4 @@
     - ansible_facts.os_family == 'Solaris'
     - sv_common_enable | default(true) | bool
 
-# =============================================================================
-# SSH HARDENING
-# =============================================================================
 
-# - name: Import tasks to configure SSH hardening
-#   ansible.builtin.include_tasks: ssh_hardening.yml
-#   tags:
-#     - ssh
-#     - security
-#   when:
-#     - sv_common_enable | bool
-
-# =============================================================================
-# SYSCTL CONFIGURATION
-# =============================================================================
-
-# - name: Import tasks to configure sysctl
-#   ansible.builtin.include_tasks: sysctl.yml
-#   tags:
-#     - sysctl
-#   when:
-#     - sv_common_enable | bool
