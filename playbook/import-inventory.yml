@@ -86,7 +86,7 @@
     - name: Assert target_environment is valid
       ansible.builtin.assert:
         that:
-          - artifact_target_environment in ['Non-Productions', 'Productions']
+          - artifact_target_environment in ['Non Production', 'Production']
         fail_msg: >
           Invalid artifact_target_environment '{{ artifact_target_environment }}'.
 
