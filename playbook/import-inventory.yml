@@ -128,7 +128,7 @@
 
     #     state: present
 
-      loop: "{{ artifact_target_hosts }}"
+      # loop: "{{ artifact_target_hosts }}"
     - name: Confirm all hosts registered
       ansible.builtin.debug:
         msg: >
