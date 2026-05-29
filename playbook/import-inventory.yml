@@ -65,22 +65,18 @@
   become: false
 
   tasks:
-    - name: Debug controller env vars
+    - name: Debug artifacts received
       ansible.builtin.debug:
         msg:
-          token_set: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | length > 0 }}"
-          artifact_vm_name: "{{ artifact_vm_name | default('NOT SET', true) }}"
-          artifact_target_ip: "{{ artifact_target_ip | default('NOT SET', true) }}"
-          artifact_target_environment: "{{ artifact_target_environment | default('NOT SET', true) }}"
+          artifact_target_environment: "{{ artifact_target_environment | default('NOT SET') }}"
+          artifact_target_hosts:       "{{ artifact_target_hosts | default('NOT SET') }}"
+          artifact_provisioned_at:     "{{ artifact_provisioned_at | default('NOT SET') }}"
 
-    - name: Assert all artifacts were passed from Common Server job
+    - name: Assert all artifacts were passed
       ansible.builtin.assert:
         that:
-          - artifact_vm_name is defined
-          - artifact_target_ip is defined
-          - artifact_ssh_user is defined
-          - artifact_ssh_port is defined
           - artifact_target_environment is defined
+          - artifact_target_hosts is defined
           - artifact_provisioned_at is defined
         fail_msg: >
           One or more artifact_ vars are missing.
@@ -90,33 +86,49 @@
     - name: Assert target_environment is valid
       ansible.builtin.assert:
         that:
-          - artifact_target_environment in ['Non Production', 'Production']
+          - artifact_target_environment in ['Non-Productions', 'Productions']
         fail_msg: >
           Invalid artifact_target_environment '{{ artifact_target_environment }}'.
-          Must be 'Non Production' or 'Production'.
 
-    - name: Register host into AWX inventory
+    # - name: Register host into AWX inventory
+    #   awx.awx.host:
+    #     controller_host: "http://192.168.1.240:30802"
+    #     # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+    #     validate_certs: false
+
+    #     name: "{{ artifact_vm_name }}"
+    #     inventory: "{{ artifact_target_environment }}"
+
+    #     variables:
+    #       ansible_host: "{{ artifact_target_ip }}"
+    #       ansible_port: "2222"  # If use defualt port"{{ artifact_ssh_port }}"
+    #       provisioned_by: "awx"
+    #       provisioned_at: "{{ artifact_provisioned_at }}"
+
+    #     state: present
+
+    - name: Register each host into AWX inventory
       awx.awx.host:
         controller_host: "http://192.168.1.240:30802"
-        # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
-        validate_certs: false
-
-        name: "{{ artifact_vm_name }}"
+        # controller_oauthtoken: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') | default(awx_token, true) }}"
+        validate_certs: "{{ awx_validate_certs }}"
+        name: "{{ item.name }}"
         inventory: "{{ artifact_target_environment }}"
-
         variables:
-          ansible_host: "{{ artifact_target_ip }}"
-          ansible_port: "2222"  # If use defualt port"{{ artifact_ssh_port }}"
+          ansible_host: "{{ item.ip }}"
+          ansible_user: "{{ artifact_ssh_user }}"
+          ansible_port: 2222
           provisioned_by: "awx"
           provisioned_at: "{{ artifact_provisioned_at }}"
-
         state: present
+      loop: "{{ artifact_target_hosts }}"
+      become: false
 
-    - name: Confirm host registration
+    - name: Confirm all hosts registered
       ansible.builtin.debug:
         msg: >
-          Host '{{ artifact_vm_name }}' successfully registered
-          into inventory '{{ artifact_target_environment }}'
-          with IP {{ artifact_target_ip }}
-          at {{ artifact_provisioned_at }}
+          Host '{{ item.name }}' registered into
+          inventory '{{ artifact_target_environment }}'
+          with IP {{ item.ip }}
+      loop: "{{ artifact_target_hosts }}"
 

@@ -81,7 +81,8 @@
 #   gather_facts: false
 
 #   roles:
-#     - common
+#     - common-server
+#     - hardening
 
 #   post_tasks:
 #     - name: Collect service facts
@@ -113,15 +114,17 @@
 #         aggregate: false
 #         per_host: false
 
+
 ---
 # ============================================================
 # JT | Common Server
-# Survey vars: vm_name, target_ip, ssh_user, ssh_password,
+# Survey vars: vm_names, target_ips, ssh_user, ssh_password,
 #              ssh_port, target_environment
+# vm_names and target_ips are textarea — one value per line
 # ============================================================
 
-# ── Play 1 ── Validate + build in-memory host ──────────────
-- name: Validate and register dynamic target
+# ── Play 1 ── Validate + build in-memory hosts ─────────────
+- name: Validate and register dynamic targets
   hosts: localhost
   connection: local
   gather_facts: false
@@ -131,16 +134,55 @@
     - name: Validate target_environment
       ansible.builtin.assert:
         that:
-          - target_environment in ['Non Production', 'Production']
+          - target_environment in ['Non-Productions', 'Productions']
         fail_msg: >
           Invalid target_environment '{{ target_environment }}'.
-          Must be 'Non Production' or 'Production'.
+          Must be 'Non-Productions' or 'Productions'.
 
-    - name: Add target into in-memory group provisioning
+    - name: Convert vm_names textarea to list
+      ansible.builtin.set_fact:
+        vm_names_list: "{{ vm_names.splitlines() | map('trim') | reject('equalto', '') | list }}"
+        target_ips_list: "{{ target_ips.splitlines() | map('trim') | reject('equalto', '') | list }}"
+
+    - name: Debug parsed host list
+      ansible.builtin.debug:
+        msg:
+          vm_names_list:  "{{ vm_names_list }}"
+          target_ips_list: "{{ target_ips_list }}"
+
+    - name: Validate vm_names and target_ips count match
+      ansible.builtin.assert:
+        that:
+          - vm_names_list | length == target_ips_list | length
+          - vm_names_list | length > 0
+        fail_msg: >
+          vm_names count ({{ vm_names_list | length }})
+          does not match target_ips count ({{ target_ips_list | length }}).
+          Each VM name must have a matching IP on the same line number.
+
+    - name: Build target_hosts list from vm_names and target_ips
+      ansible.builtin.set_fact:
+        target_hosts: >-
+          {{
+            target_hosts | default([]) +
+            [{
+              'name': vm_names_list[index],
+              'ip':   target_ips_list[index]
+            }]
+          }}
+      loop: "{{ vm_names_list }}"
+      loop_control:
+        index_var: index
+
+    - name: Debug target_hosts list
+      ansible.builtin.debug:
+        var: target_hosts
+
+    - name: Add each target into in-memory group provisioning
       ansible.builtin.add_host:
-        name: "{{ vm_name }}"
+        name: "{{ item.name }}"
         groups: provisioning
-        ansible_host: "{{ target_ip }}"
+        ansible_host: "{{ item.ip }}"
         ansible_user: "{{ ssh_user }}"
         ansible_password: "{{ ssh_password }}"
         ansible_port: "{{ ssh_port | default(22) }}"
@@ -149,18 +191,21 @@
         ansible_ssh_common_args: >-
           -o StrictHostKeyChecking=no
           -o UserKnownHostsFile=/dev/null
+        target_environment: "{{ target_environment }}"
+        target_ip: "{{ item.ip }}"
+        vm_name: "{{ item.name }}"
+      loop: "{{ target_hosts }}"
 
-    - name: Cache survey vars on localhost scope
+    - name: Cache vars on localhost scope for Play 4
       ansible.builtin.set_fact:
-        _vm_name:              "{{ vm_name }}"
-        _target_ip:            "{{ target_ip }}"
-        _ssh_user:             "{{ ssh_user }}"
-        _ssh_port:             "{{ ssh_port | default(22) }}"
-        _target_environment:   "{{ target_environment }}"
+        _ssh_user:           "{{ ssh_user }}"
+        _ssh_port:           "{{ ssh_port | default(22) }}"
+        _target_environment: "{{ target_environment }}"
+        _target_hosts:       "{{ target_hosts }}"
 
 
-# ── Play 2 ── Wait for SSH ─────────────────────────────────
-- name: Wait for target to become reachable
+# ── Play 2 ── Wait for SSH ──────────────────────────────────
+- name: Wait for targets to become reachable
   hosts: provisioning
   gather_facts: false
   become: false
@@ -189,7 +234,7 @@
           - '!ohai'
 
 
-# ── Play 3 ── Apply common role + hardening ────────────────
+# ── Play 3 ── Apply common role + hardening ─────────────────
 - name: Bootstrap and harden Linux server
   hosts: provisioning
   become: true
@@ -209,7 +254,7 @@
         fail_msg: "sshd is not running on {{ inventory_hostname }}"
 
 
-# ── Play 4 ── Write artifact for Import Inventory job ──────
+# ── Play 4 ── Write artifact for Import Inventory job ───────
 - name: Publish host artifact for Import Inventory job
   hosts: localhost
   connection: local
@@ -220,11 +265,10 @@
     - name: Set workflow artifact via set_stats
       ansible.builtin.set_stats:
         data:
-          artifact_vm_name:            "{{ _vm_name }}"
-          artifact_target_ip:          "{{ _target_ip }}"
+          artifact_target_environment: "{{ _target_environment }}"
           artifact_ssh_user:           "{{ _ssh_user }}"
           artifact_ssh_port:           "{{ _ssh_port }}"
-          artifact_target_environment: "{{ _target_environment }}"
+          artifact_target_hosts:       "{{ _target_hosts }}"
           artifact_provisioned_at:     "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
         aggregate: false
         per_host: false
